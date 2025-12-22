@@ -1,0 +1,172 @@
+# GFlowNet Peptide Generation - Default Configuration
+
+# =============================================================================
+# Forward Policy (P_F)
+# =============================================================================
+policy:
+  # Transformer architecture
+  vocab_size: 22  # 20 amino acids + START + STOP
+  d_model: 256
+  n_layers: 4
+  n_heads: 8
+  dim_feedforward: 512
+  dropout: 0.1
+  max_length: 40
+
+  # Positional encoding
+  pos_encoding: "sinusoidal"  # or "learned"
+
+# =============================================================================
+# Backward Policy (P_B)
+# =============================================================================
+backward_policy:
+  type: "uniform"  # For linear autoregressive generation, P_B = 1
+  # type: "learned"  # Alternative for more complex state spaces
+
+# =============================================================================
+# Reward Model
+# =============================================================================
+reward:
+  # ESM-2 backbone
+  esm_model: "esm2_t33_650M_UR50D"  # or "esm2_t12_35M_UR50D" for faster training
+  freeze_esm: true
+
+  # Reward heads
+  stability_head:
+    hidden_dim: 256
+    n_layers: 2
+    activation: "relu"
+
+  binding_head:
+    hidden_dim: 256
+    n_layers: 2
+    activation: "relu"
+
+  # Composite reward weights
+  weights:
+    stability: 1.0
+    binding: 1.0
+    naturalness: 0.5
+
+  # Non-negativity transform
+  transform: "exp"  # or "softplus"
+
+  # Temperature for P(x) ∝ R(x)^β
+  temperature: 1.0
+
+# =============================================================================
+# Training
+# =============================================================================
+training:
+  # Optimization
+  learning_rate: 3.0e-4
+  weight_decay: 0.01
+  lr_scheduler: "cosine"
+  warmup_steps: 1000
+
+  # Batch and steps
+  batch_size: 64
+  n_steps: 100000
+  gradient_accumulation_steps: 1
+  max_grad_norm: 1.0
+
+  # Loss function
+  loss_type: "trajectory_balance"  # "trajectory_balance" or "sub_trajectory_balance"
+
+  # Checkpointing
+  save_every: 5000
+  eval_every: 1000
+
+  # Learnable log Z
+  init_log_z: 0.0
+
+  # Reproducibility
+  seed: 42
+
+# =============================================================================
+# Data
+# =============================================================================
+data:
+  # FLIP dataset
+  flip_path: "data/flip/"
+  flip_tasks:
+    - "stability"
+    - "gb1"
+
+  # Propedia dataset
+  propedia_path: "data/propedia/"
+
+  # Preprocessing
+  min_length: 10
+  max_length: 50
+  train_split: 0.8
+  val_split: 0.1
+  test_split: 0.1
+
+# =============================================================================
+# Generation / Sampling
+# =============================================================================
+generation:
+  min_length: 10
+  max_length: 30
+
+  # Sampling parameters
+  sample_temperature: 1.0  # Higher = more uniform, lower = more peaked
+  top_k: 0  # 0 = disabled
+  top_p: 1.0  # 1.0 = disabled
+
+  # Batch generation
+  batch_size: 128
+
+# =============================================================================
+# Evaluation
+# =============================================================================
+evaluation:
+  n_samples: 1000
+
+  # Diversity metrics
+  compute_sequence_diversity: true
+  compute_embedding_diversity: true
+  compute_clusters: true
+
+  # Clustering parameters
+  umap_n_neighbors: 15
+  umap_min_dist: 0.1
+  hdbscan_min_cluster_size: 5
+
+  # Proportionality check
+  n_reward_bins: 10
+
+# =============================================================================
+# Logging
+# =============================================================================
+logging:
+  use_wandb: true
+  wandb_project: "gflownet-peptide"
+  wandb_entity: null  # Your wandb username
+
+  log_every: 100
+
+  # Console output
+  verbose: true
+
+# =============================================================================
+# Hardware
+# =============================================================================
+hardware:
+  device: "cuda"  # or "cpu"
+  num_workers: 4
+  pin_memory: true
+
+  # Mixed precision
+  use_amp: true
+  amp_dtype: "float16"  # or "bfloat16"
+
+# =============================================================================
+# Paths
+# =============================================================================
+paths:
+  output_dir: "outputs/"
+  checkpoint_dir: "checkpoints/"
+  sample_dir: "samples/"
+  log_dir: "logs/"
