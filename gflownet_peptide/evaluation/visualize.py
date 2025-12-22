@@ -186,7 +186,7 @@ def plot_proportionality(
     fig, ax = plt.subplots(figsize=figsize)
 
     ax.scatter(bin_means, log_freq, s=100, alpha=0.7, label="Observed")
-    ax.plot(bin_means, fit_line, "r--", label=f"Fit (R²={r2:.3f})")
+    ax.plot(bin_means, fit_line, color="#E07A5F", linestyle="--", label=f"Fit (R²={r2:.3f})")
 
     # Ideal line (slope = 1 for P(x) ∝ R(x))
     ideal_line = bin_means + (np.mean(log_freq) - np.mean(bin_means))
