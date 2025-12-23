@@ -93,3 +93,6 @@ wandb/
 # Large files
 *.tar.gz
 *.zip
+
+# Misc
+etc/
