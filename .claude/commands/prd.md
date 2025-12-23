@@ -179,27 +179,86 @@ Create a comprehensive markdown document with the following structure. Expand si
 
 ---
 
-## 9. Implementation Notebooks
+## 9. Implementation Code
 
-All implementation code for this phase MUST be written in Jupyter notebooks (`.ipynb`).
+This phase uses a **hybrid approach**: notebooks for exploration/analysis, Python scripts for training.
 
-**Notebook naming convention**: `gflownet-phase-{N}-{activity-slug}.ipynb`
+### 9.1 When to Use Notebooks vs Scripts
 
-**Notebook location**: `notebooks/` directory
+| Use Case | Format | Location |
+|----------|--------|----------|
+| Data exploration & validation | Notebook | `notebooks/` |
+| Visualization & analysis | Notebook | `notebooks/` |
+| Prototyping new components | Notebook | `notebooks/` |
+| Long-running training (>10 min) | Python script | `scripts/` |
+| Hyperparameter sweeps | Python script | `scripts/` |
+| Production/reusable code | Python module | `gflownet_peptide/` |
 
-**Expected notebooks for this phase**:
-{List the specific notebooks needed based on the phase activities}
+### 9.2 Phase-Specific Guidance
 
+| Phase | Primary Format | Rationale |
+|-------|---------------|-----------|
+| -1 Data Acquisition | Notebooks | Interactive data validation |
+| 0 Validation | **Scripts** + Notebooks | GRPO-D training is long-running; notebook for analysis |
+| 1 Reward Model | **Scripts** + Notebooks | Training is long-running; notebook for evaluation |
+| 2 GFlowNet Core | **Modules** + Notebooks | Production code; notebook for testing |
+| 3 Training | **Scripts** | Multi-hour runs, hyperparameter sweeps |
+| 4 Evaluation | Notebooks | Analysis, comparisons, figures |
+| 5 Documentation | Notebooks | Final figures and analysis |
+
+### 9.3 Expected Implementation Files
+
+{List the specific files needed based on the phase - adjust format per phase guidance above}
+
+**For notebook-primary phases (-1, 0, 4, 5):**
 | Notebook | Purpose | Status |
 |----------|---------|--------|
-| `gflownet-phase-{N}-{activity}.ipynb` | {description} | [ ] Not started |
+| `notebooks/gflownet-phase-{N}-{activity}.ipynb` | {description} | [ ] Not started |
 
-**Notebook requirements** (MUST follow):
-1. Organize the notebook with clear numbered sections using markdown headers
-2. Include a minimal, self-sufficient description before each code cell explaining what that code block does
-3. Configure all plots to display inline within the notebook AND save as external files (to `outputs/` directory)
-4. Ensure the notebook is fully executable from top to bottom (no manual interventions needed)
+**For script-primary phases (1, 3):**
+| Script | Purpose | Status |
+|--------|---------|--------|
+| `scripts/{script_name}.py` | {description} | [ ] Not started |
+
+| Notebook (analysis) | Purpose | Status |
+|---------------------|---------|--------|
+| `notebooks/gflownet-phase-{N}-analysis.ipynb` | Validation & visualization | [ ] Not started |
+
+**For module-primary phases (2):**
+| Module | Purpose | Status |
+|--------|---------|--------|
+| `gflownet_peptide/{module}/` | {description} | [ ] Not started |
+
+| Tests | Purpose | Status |
+|-------|---------|--------|
+| `tests/test_{module}.py` | Unit tests | [ ] Not started |
+
+### 9.4 Notebook Requirements (when using notebooks)
+
+1. Organize with clear numbered sections using markdown headers
+2. Include a minimal, self-sufficient description before each code cell
+3. Configure all plots to display inline AND save to `outputs/` directory
+4. Ensure fully executable from top to bottom (no manual interventions)
 5. Include verification cells at the end of each major section
+
+### 9.5 Script Requirements (when using scripts)
+
+1. Use `argparse` or config files for all parameters
+2. Implement checkpointing for runs >30 minutes
+3. Log to wandb or similar for experiment tracking
+4. Include `--dry-run` flag for testing
+5. Print clear progress updates
+6. Example invocation in docstring or README
+
+**Required Environment Variables** (set in `~/.zshrc` or shell config):
+- `WANDB_API_KEY`: W&B API key for experiment tracking
+- `HF_TOKEN`: Hugging Face token for model downloads
+
+**W&B Configuration** (in config YAML or CLI args):
+```yaml
+wandb_project: "gflownet-peptide"
+wandb_entity: "ewijaya"
+```
 
 ---
 

@@ -1,0 +1,52 @@
+# GRPO-D Configuration for Peptide Generation
+# ============================================
+# Group Relative Policy Optimization with Diversity awareness
+# Uses ESM-2 pseudo-likelihood as the reward function
+
+# Model Configuration
+# Options: littleworth/protgpt2-distilled-tiny (fastest), littleworth/protgpt2-distilled-medium
+model_name: "littleworth/protgpt2-distilled-tiny"  # Tiny for fast iteration
+hidden_dim: 256
+
+# Peptide Constraints
+min_length: 10
+max_length: 30
+amino_acids: "ACDEFGHIKLMNPQRSTVWY"
+
+# GRPO Hyperparameters
+learning_rate: 3.0e-4
+batch_size: 16           # Number of prompts per iteration
+num_generations: 8       # Peptides generated per prompt
+beta: 0.04               # KL divergence penalty coefficient
+max_grad_norm: 1.0       # Gradient clipping
+
+# Diversity Configuration (GRPO-D)
+# These weights control the balance between reward and diversity
+diversity_weight: 0.15       # Overall: combined = (1-dw)*reward + dw*diversity
+diversity_weight_aa: 0.7     # Weight for amino acid frequency diversity
+diversity_weight_seq: 0.3    # Weight for sequence dissimilarity (Levenshtein)
+use_sequence_diversity: true
+
+# Training Configuration
+total_iterations: 1000   # Quick test for Phase 0 validation
+buffer_size: 500
+min_buffer_size: 16
+save_interval: 200       # Save checkpoint every N iterations
+eval_interval: 50        # Log evaluation metrics every N iterations
+
+# Generation Parameters
+temperature: 1.0
+top_p: 0.95
+repetition_penalty: 1.0
+
+# ESM-2 Reward Configuration
+# Options: esm2_t6_8M_UR50D (fastest), esm2_t12_35M_UR50D (balanced), esm2_t33_650M_UR50D (best)
+esm_model: "esm2_t6_8M_UR50D"  # Smallest/fastest for Phase 0 testing
+
+# Output Paths
+checkpoint_dir: "checkpoints/grpo"
+results_dir: "results/grpo"
+
+# W&B Configuration
+wandb_project: "gflownet-peptide"
+wandb_entity: "ewijaya"

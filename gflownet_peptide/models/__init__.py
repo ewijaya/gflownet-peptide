@@ -8,12 +8,22 @@ from gflownet_peptide.models.reward_model import (
     NaturalnessReward,
     CompositeReward,
 )
+from gflownet_peptide.models.grpo_policy import (
+    PolicyValueNetwork,
+    initialize_tokenizer,
+    tokenize_peptide,
+)
 
 __all__ = [
+    # GFlowNet
     "ForwardPolicy",
     "BackwardPolicy",
     "StabilityReward",
     "BindingReward",
     "NaturalnessReward",
     "CompositeReward",
+    # GRPO
+    "PolicyValueNetwork",
+    "initialize_tokenizer",
+    "tokenize_peptide",
 ]
