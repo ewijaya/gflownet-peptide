@@ -25,7 +25,15 @@ Run these commands to gather context:
 ### Step 2: Check Running Processes
 
 ```bash
+# Training jobs
 ! ps aux | grep -E "train.*\.py|python.*train" | grep -v grep | head -5
+# Evaluation/analysis scripts
+! ps aux | grep -E "eval|analyze|sample" | grep "\.py" | grep -v grep | head -5
+# Tests
+! ps aux | grep -E "pytest|python.*test" | grep -v grep | head -3
+# Jupyter notebooks
+! ps aux | grep -E "jupyter|ipykernel" | grep -v grep | head -3
+# Recent logs
 ! ls -lt logs/*.log 2>/dev/null | head -3
 ```
 
@@ -44,7 +52,10 @@ From the current conversation, identify:
 2. **Key decisions** made
 3. **Observations and insights** (problems, solutions, learnings)
 4. **Next steps** discussed or implied
-5. **Running processes** (training jobs, background tasks)
+5. **Running processes** (training, evaluation, tests, notebooks)
+6. **Code development** (new modules, refactoring, bug fixes)
+7. **Evaluation/analysis** (metrics computed, visualizations created)
+8. **Tests** (tests added, test results, coverage changes)
 
 ### Step 5: Generate TODO Content
 
@@ -77,10 +88,28 @@ Create the TODO file with this structure:
 
 ## Completed This Session
 
-{Bullet list of what was accomplished}
+{Bullet list of what was accomplished, grouped by category}
 
-- {Task 1}
-- {Task 2}
+### Code Development
+
+- {New module/script created}
+- {Refactoring done}
+- {Bug fixed}
+
+### Training
+
+- {Training run completed}
+
+### Evaluation & Analysis
+
+- {Metrics computed}
+- {Visualization created}
+- {Analysis notebook completed}
+
+### Tests
+
+- {Tests added/updated}
+- {Test results summary}
 
 ---
 
