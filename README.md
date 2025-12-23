@@ -170,12 +170,16 @@ gflownet-peptide/
 
 ## Datasets
 
-| Dataset | Property | Size | Source |
-|---------|----------|------|--------|
-| FLIP Stability | ΔΔG (thermal stability) | 53K | [FLIP Benchmark](https://benchmark.protein.properties/) |
-| FLIP GB1 | Binding fitness | 150K | [FLIP Benchmark](https://benchmark.protein.properties/) |
-| Propedia | Peptide-protein binding | 19K | [Propedia](http://bioinfo.dcc.ufmg.br/propedia/) |
-| ProteinGym | Multi-assay fitness | 2.5M | [ProteinGym](https://proteingym.org/) |
+All required datasets have been downloaded and validated:
+
+| Dataset | Property | Size | Status | Source |
+|---------|----------|------|--------|--------|
+| FLIP Stability | ΔΔG (thermal stability) | 28K | ✅ Downloaded | [FLIP Benchmark](https://benchmark.protein.properties/) |
+| FLIP GB1 | Binding fitness | 149K | ✅ Downloaded | [FLIP Benchmark](https://benchmark.protein.properties/) |
+| Propedia | Peptide-protein binding | 13K | ✅ Downloaded | [Propedia](http://bioinfo.dcc.ufmg.br/propedia/) |
+| ProteinGym | Multi-assay fitness | 2.5M | Optional | [ProteinGym](https://proteingym.org/) |
+
+Data loaders implemented in `gflownet_peptide/data/`.
 
 ## Configuration
 

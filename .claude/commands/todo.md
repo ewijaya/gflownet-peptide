@@ -5,7 +5,8 @@ argument-hint: "[optional notes to include]"
 
 # Session TODO Generator
 
-Generate a phase-aware TODO markdown file for the current project, summarizing the session's work, next steps, and observations.
+Generate a phase-aware TODO markdown file for the current project, summarizing
+the session's work, next steps, and observations.
 
 ## Instructions
 
@@ -13,26 +14,32 @@ Generate a phase-aware TODO markdown file for the current project, summarizing t
 
 Run these commands to gather context:
 
+```bash
 ! basename $(git rev-parse --show-toplevel 2>/dev/null) || basename $(pwd)
-! git remote get-url origin 2>/dev/null | sed 's/.*\///' | sed 's/\.git$//' || echo ""
+! git remote get-url origin 2>/dev/null | sed 's/.*\///' | sed 's/\.git$//'
 ! ls -1 doc/prd-phase-*.md 2>/dev/null | head -5
 ! ls -1t doc/TODO-*.md 2>/dev/null | head -1
 ! grep -r "wandb_entity\|wandb_project" configs/*.yaml 2>/dev/null | head -2
+```
 
 ### Step 2: Check Running Processes
 
+```bash
 ! ps aux | grep -E "train.*\.py|python.*train" | grep -v grep | head -5
 ! ls -lt logs/*.log 2>/dev/null | head -3
+```
 
 ### Step 3: Generate Timestamp
 
 Generate the filename using JST timezone:
+
 - Format: `doc/TODO-YYYY-MM-DD-HHMM.md`
 - Use current date/time in JST (Asia/Tokyo)
 
 ### Step 4: Analyze Session Context
 
 From the current conversation, identify:
+
 1. **Files created or modified** this session
 2. **Key decisions** made
 3. **Observations and insights** (problems, solutions, learnings)
