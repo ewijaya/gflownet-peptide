@@ -325,6 +325,140 @@ More stable for long sequences; computes loss on sub-trajectories rather than fu
 
 ## 5. Implementation Phases & Phase-Gate Criteria
 
+### Phase -1: Data Acquisition & Infrastructure
+
+**Duration:** 1 week (prerequisite)
+**Objective:** Download, validate, and prepare all datasets and infrastructure before development begins
+
+#### 5.-1.1 Dataset Inventory
+
+| Dataset | Source | Size | Format | Required | Purpose |
+|---------|--------|------|--------|----------|---------|
+| **FLIP Stability** | [benchmark.protein.properties](https://benchmark.protein.properties/) | 53K sequences | CSV | Yes | Stability reward model |
+| **FLIP GB1** | [benchmark.protein.properties](https://benchmark.protein.properties/) | 150K sequences | CSV | Optional | Binding fitness (alternative) |
+| **Propedia** | [propedia.org](http://bioinfo.dcc.ufmg.br/propedia/) | 19K complexes | CSV/JSON | Yes | Binding reward model |
+| **ESM-2 Models** | `fair-esm` package | 0.5-2.5 GB | PyTorch | Yes | Protein embeddings |
+| **ProteinGym** | [proteingym.org](https://proteingym.org/) | 2.5M variants | CSV | Optional | Validation/benchmarking |
+
+#### 5.-1.2 Activities
+
+| ID | Activity | Output |
+|----|----------|--------|
+| -1.1 | Set up data directory structure (`data/flip/`, `data/propedia/`) | Directory tree |
+| -1.2 | Download FLIP Stability dataset | `data/flip/stability/` |
+| -1.3 | Download FLIP GB1 dataset (optional) | `data/flip/gb1/` |
+| -1.4 | Download Propedia binding data | `data/propedia/` |
+| -1.5 | Verify ESM-2 model download via `fair-esm` | Model loads successfully |
+| -1.6 | Implement data loader: `gflownet_peptide/data/flip.py` | Working module |
+| -1.7 | Implement data loader: `gflownet_peptide/data/propedia.py` | Working module |
+| -1.8 | Create data validation script | `scripts/validate_data.py` |
+| -1.9 | Run full data pipeline test | All tests pass |
+
+#### 5.-1.3 Download Procedures
+
+**FLIP Benchmark:**
+```bash
+# Option 1: Direct download from benchmark website
+wget https://benchmark.protein.properties/downloads/stability.csv -O data/flip/stability.csv
+
+# Option 2: Using the FLIP Python package
+pip install flip-benchmark
+python -c "from flip import load_dataset; load_dataset('stability', save_dir='data/flip/')"
+```
+
+**Propedia:**
+```bash
+# Download from Propedia website (requires manual navigation or API)
+# Expected files: propedia_peptides.csv with columns: sequence, binding_affinity
+wget http://bioinfo.dcc.ufmg.br/propedia/download/propedia_v2.csv -O data/propedia/propedia.csv
+```
+
+**ESM-2 (Auto-download on first use):**
+```python
+import esm
+model, alphabet = esm.pretrained.esm2_t12_35M_UR50D()  # Downloads automatically
+```
+
+#### 5.-1.4 Data Format Specifications
+
+**FLIP Stability Format:**
+| Column | Type | Description | Example |
+|--------|------|-------------|---------|
+| sequence | string | Amino acid sequence (uppercase) | `MKFLILFLPFAS` |
+| fitness | float | ΔΔG stability score | `-1.23` |
+
+**Propedia Format:**
+| Column | Type | Description | Example |
+|--------|------|-------------|---------|
+| peptide_sequence | string | Peptide amino acid sequence | `RKKRRQRRR` |
+| binding_affinity | float | Binding strength (pKd or similar) | `7.5` |
+| target_protein | string | Target protein ID (optional) | `P12345` |
+
+**Amino Acid Vocabulary:**
+- 20 standard amino acids: `ACDEFGHIKLMNPQRSTVWY`
+- Special tokens: START (20), STOP (21), PAD (22)
+
+#### 5.-1.5 Preprocessing Requirements
+
+| Requirement | Specification |
+|-------------|---------------|
+| Length filter | 10-50 amino acids |
+| Sequence validation | Only canonical 20 AA allowed |
+| Label normalization | Zero-mean, unit-variance for regression |
+| Train/Val/Test split | 80% / 10% / 10% |
+| Deduplication | Remove exact sequence duplicates |
+
+#### 5.-1.6 Data Loading Infrastructure
+
+**Files to Create:**
+
+1. `gflownet_peptide/data/__init__.py`:
+```python
+from .flip import load_flip_stability, load_flip_gb1
+from .propedia import load_propedia
+```
+
+2. `gflownet_peptide/data/flip.py`:
+```python
+def load_flip_stability(data_path: str) -> tuple[list[str], np.ndarray]:
+    """Load FLIP stability task. Returns (sequences, labels)."""
+
+def load_flip_gb1(data_path: str) -> tuple[list[str], np.ndarray]:
+    """Load FLIP GB1 binding task. Returns (sequences, labels)."""
+```
+
+3. `gflownet_peptide/data/propedia.py`:
+```python
+def load_propedia(data_path: str) -> tuple[list[str], np.ndarray]:
+    """Load Propedia binding data. Returns (sequences, labels)."""
+```
+
+#### 5.-1.7 Storage Requirements
+
+| Component | Size |
+|-----------|------|
+| FLIP datasets (raw) | ~500 MB |
+| Propedia dataset (raw) | ~200 MB |
+| ESM-2 t12_35M model | ~500 MB |
+| ESM-2 t33_650M model | ~2.5 GB |
+| Processed/cached data | ~1 GB |
+| **Total** | ~5 GB |
+
+#### 5.-1.8 Success Criteria (Phase Gate)
+
+| Criterion | Target | Measurement | Go/No-Go |
+|-----------|--------|-------------|----------|
+| FLIP Stability downloaded | ≥50K sequences | `wc -l data/flip/stability.csv` | Go if ≥50K |
+| Propedia downloaded | ≥15K sequences | `wc -l data/propedia/propedia.csv` | Go if ≥15K |
+| Sequences valid | 100% canonical AA | Validation script | Go if 100% |
+| Data loaders work | No import errors | `python -c "from gflownet_peptide.data import *"` | Go if passes |
+| ESM-2 loads | Forward pass succeeds | Test script | Go if passes |
+| Pipeline test | End-to-end success | `pytest tests/test_data_loading.py` | Go if passes |
+
+**Decision:** If any required dataset is unavailable or data loaders fail, resolve before proceeding to Phase 0.
+
+---
+
 ### Phase 0: Validation (Is GFlowNet Needed?)
 
 **Duration:** 1 week
@@ -838,6 +972,7 @@ Title: Diverse Therapeutic Peptide Generation with GFlowNet:
 
 | Week | Milestone | Deliverable |
 |------|-----------|-------------|
+| 0 | Phase -1 complete | Data ready, loaders working |
 | 1 | Phase 0 complete | Go/no-go decision |
 | 3 | Phase 1 complete | Validated reward model |
 | 5 | Phase 2 complete | Working GFlowNet code |

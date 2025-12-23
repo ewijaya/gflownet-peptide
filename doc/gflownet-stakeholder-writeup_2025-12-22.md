@@ -64,6 +64,23 @@ The system learns by trial and feedback: generate candidates, score them, then a
 
 **Current workaround:** We added a "diversity penalty" to GRPO that encourages variety. This helps, but creates a trade-off: the more we push for diversity, the more we sacrifice peak efficacy.
 
+### Why Diversity Is Critical in Drug Discovery
+
+**Attrition risk management:** Drug candidates fail at alarming rates—roughly 90% entering clinical trials do not succeed. If all candidates come from the same structural "family," a single failure mode (toxicity, poor ADME, synthesis issues) can eliminate the entire pipeline. Diverse scaffolds provide independent shots on goal.
+
+**Unpredictable failure modes:** Computational models predict efficacy well, but struggle to predict:
+- Manufacturability and synthesis feasibility
+- Immunogenicity (will the body reject it?)
+- Off-target effects
+- Stability in formulation
+- Bioavailability
+
+Having structurally diverse candidates means if one family fails for an unpredictable reason, alternatives exist.
+
+**IP and patent strategy:** Diverse structural families provide broader patent coverage and freedom-to-operate. A single scaffold can be designed around by competitors; a portfolio of diverse scaffolds is harder to circumvent.
+
+**The bottom line:** When a wet-lab team receives candidates, low diversity means "all 20 candidates have a similar core—if that core causes issues, we have nothing else." High diversity means "we have multiple structural families to test—if one fails, we pivot to another."
+
 ---
 
 ## 4. Proposed Next Step: GFlowNet
