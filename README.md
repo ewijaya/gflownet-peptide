@@ -2,6 +2,7 @@
 
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![W&B](https://img.shields.io/badge/W%26B-Experiments-FFCC33?logo=weightsandbiases&logoColor=black)](https://wandb.ai/ewijaya/gflownet-peptide)
 
 **Diverse therapeutic peptide generation via reward-proportional sampling with Generative Flow Networks.**
 
@@ -16,6 +17,12 @@ This repository implements GFlowNet for generating diverse, high-quality therape
 - **ESM-2 based rewards**: Leverages protein language model embeddings
 - **Modular design**: Swap reward models, adjust temperature, compare to baselines
 - **Public data only**: Trained on FLIP and Propedia benchmarks
+
+### Experiment Tracking
+
+Live training metrics and results are tracked on Weights & Biases:
+
+**[View Live Dashboard →](https://wandb.ai/ewijaya/gflownet-peptide)**
 
 ## Why GFlowNet for Peptides?
 
