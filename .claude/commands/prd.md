@@ -42,7 +42,7 @@ Check if a file already exists with the pattern `doc/prd-phase-{N}-*.md`. If it 
 - First file: `doc/prd-phase-{N}-{name}.md`
 - Subsequent: `doc/prd-phase-{N}-{name}-v2.md`, `doc/prd-phase-{N}-{name}-v3.md`, etc.
 
-**Phase name slugs**:
+**Phase name slugs** (used for both PRD and notebook filenames):
 - Phase -1: `data-acquisition`
 - Phase 0: `validation`
 - Phase 1: `reward-model`
@@ -50,6 +50,8 @@ Check if a file already exists with the pattern `doc/prd-phase-{N}-*.md`. If it 
 - Phase 3: `training`
 - Phase 4: `evaluation`
 - Phase 5: `documentation`
+
+**Implementation notebooks**: `notebooks/gflownet-phase-{N}-{slug}.ipynb`
 
 ### Step 4: Generate Detailed Phase PRD
 
@@ -177,7 +179,31 @@ Create a comprehensive markdown document with the following structure. Expand si
 
 ---
 
-## 9. Notes & References
+## 9. Implementation Notebooks
+
+All implementation code for this phase MUST be written in Jupyter notebooks (`.ipynb`).
+
+**Notebook naming convention**: `gflownet-phase-{N}-{activity-slug}.ipynb`
+
+**Notebook location**: `notebooks/` directory
+
+**Expected notebooks for this phase**:
+{List the specific notebooks needed based on the phase activities}
+
+| Notebook | Purpose | Status |
+|----------|---------|--------|
+| `gflownet-phase-{N}-{activity}.ipynb` | {description} | [ ] Not started |
+
+**Notebook requirements** (MUST follow):
+1. Organize the notebook with clear numbered sections using markdown headers
+2. Include a minimal, self-sufficient description before each code cell explaining what that code block does
+3. Configure all plots to display inline within the notebook AND save as external files (to `outputs/` directory)
+4. Ensure the notebook is fully executable from top to bottom (no manual interventions needed)
+5. Include verification cells at the end of each major section
+
+---
+
+## 10. Notes & References
 
 - Master PRD: doc/gflownet-master-prd.md
 - {Other relevant documents}
