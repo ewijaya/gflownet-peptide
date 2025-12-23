@@ -17,8 +17,8 @@ Run these commands to gather context:
 ```bash
 ! basename $(git rev-parse --show-toplevel 2>/dev/null) || basename $(pwd)
 ! git remote get-url origin 2>/dev/null | sed 's/.*\///' | sed 's/\.git$//'
-! ls -1 doc/prd-phase-*.md 2>/dev/null | head -5
-! ls -1t doc/TODO-*.md 2>/dev/null | head -1
+! ls -1 docs/prd-phase-*.md 2>/dev/null | head -5
+! ls -1t docs/TODO-*.md 2>/dev/null | head -1
 ! grep -r "wandb_entity\|wandb_project" configs/*.yaml 2>/dev/null | head -2
 ```
 
@@ -41,7 +41,7 @@ Run these commands to gather context:
 
 Generate the filename using JST timezone:
 
-- Format: `doc/TODO-YYYY-MM-DD-HHMM.md`
+- Format: `docs/TODO-YYYY-MM-DD-HHMM.md`
 - Use current date/time in JST (Asia/Tokyo)
 
 ### Step 4: Analyze Session Context
@@ -72,7 +72,7 @@ Create the TODO file with this structure:
 
 ## Current Phase: {Phase N - Name}
 
-{Detected from doc/prd-phase-*.md files. Include brief phase objective.}
+{Detected from docs/prd-phase-*.md files. Include brief phase objective.}
 
 ---
 
@@ -146,7 +146,7 @@ Create the TODO file with this structure:
 
 ### Step 6: Write and Report
 
-1. Write the content to `doc/TODO-{YYYY-MM-DD}-{HHMM}.md`
+1. Write the content to `docs/TODO-{YYYY-MM-DD}-{HHMM}.md`
 2. Report to user:
    - File path created
    - Summary of key sections

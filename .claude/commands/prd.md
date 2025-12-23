@@ -30,17 +30,17 @@ If invalid, inform the user and list valid options.
 
 ### Step 2: Read Master PRD
 
-Read the master PRD file at `doc/gflownet-master-prd.md` and extract the relevant phase section (Section 5.X where X is the phase number).
+Read the master PRD file at `docs/gflownet-master-prd.md` and extract the relevant phase section (Section 5.X where X is the phase number).
 
 ### Step 3: Check for Existing Files
 
-Check if a file already exists with the pattern `doc/prd-phase-{N}-*.md`. If it does:
+Check if a file already exists with the pattern `docs/prd-phase-{N}-*.md`. If it does:
 - Find the highest version number (v2, v3, etc.)
 - Create a new file with the next version number
 
 **Naming convention**:
-- First file: `doc/prd-phase-{N}-{name}.md`
-- Subsequent: `doc/prd-phase-{N}-{name}-v2.md`, `doc/prd-phase-{N}-{name}-v3.md`, etc.
+- First file: `docs/prd-phase-{N}-{name}.md`
+- Subsequent: `docs/prd-phase-{N}-{name}-v2.md`, `docs/prd-phase-{N}-{name}-v3.md`, etc.
 
 **Phase name slugs** (used for both PRD and notebook filenames):
 - Phase -1: `data-acquisition`
@@ -60,7 +60,7 @@ Create a comprehensive markdown document with the following structure. Expand si
 ```markdown
 # Phase {N}: {Full Name} - Detailed PRD
 
-**Generated from**: doc/gflownet-master-prd.md Section 5.{N}
+**Generated from**: docs/gflownet-master-prd.md Section 5.{N}
 **Date**: {today's date}
 **Status**: Draft
 
@@ -264,14 +264,14 @@ wandb_entity: "ewijaya"
 
 ## 10. Notes & References
 
-- Master PRD: doc/gflownet-master-prd.md
+- Master PRD: docs/gflownet-master-prd.md
 - {Other relevant documents}
 - {External references}
 ```
 
 ### Step 5: Write the File
 
-Write the generated content to the appropriate file path in `doc/`.
+Write the generated content to the appropriate file path in `docs/`.
 
 Report to the user:
 - The file path created

@@ -1,6 +1,6 @@
 # Phase -1: Data Acquisition & Infrastructure - Detailed PRD
 
-**Generated from**: doc/gflownet-master-prd.md Section 5.-1
+**Generated from**: docs/gflownet-master-prd.md Section 5.-1
 **Date**: 2025-12-23
 **Status**: Draft
 
@@ -845,7 +845,7 @@ All implementation code for this phase MUST be written in Jupyter notebooks (`.i
 
 ## 10. Notes & References
 
-- Master PRD: doc/gflownet-master-prd.md
+- Master PRD: docs/gflownet-master-prd.md
 - **FLIP Benchmark**:
   - GitHub Repository: https://github.com/J-SNACKKB/FLIP
   - Raw Data Download: http://data.bioembeddings.com/public/FLIP/

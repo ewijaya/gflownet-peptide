@@ -1,6 +1,6 @@
 # Phase 0: Validation (Is GFlowNet Needed?) - Detailed PRD
 
-**Generated from**: doc/gflownet-master-prd.md Section 5.0
+**Generated from**: docs/gflownet-master-prd.md Section 5.0
 **Date**: 2025-12-23
 **Status**: Implementation Complete - Ready for Training
 **Last Updated**: 2025-12-23
@@ -448,10 +448,10 @@ print(f'Mean reward - GRPO: {grpo[\"mean_reward\"]:.3f}, Random: {rand[\"mean_re
 **Verification**:
 ```bash
 # Check requirements document exists
-ls -la doc/stakeholder_requirements.md
+ls -la docs/stakeholder_requirements.md
 ```
 
-**Output**: `doc/stakeholder_requirements.md` - documented diversity requirements
+**Output**: `docs/stakeholder_requirements.md` - documented diversity requirements
 
 ---
 
@@ -491,7 +491,7 @@ outputs/
 ├── random_metrics.json                  # Random baseline metrics
 └── comparison_plot.png                  # Side-by-side comparison
 
-doc/
+docs/
 ├── stakeholder_requirements.md          # Interview results
 └── phase0_decision.md                   # Go/no-go decision document
 ```
@@ -590,7 +590,7 @@ def embedding_diversity(embeddings: np.ndarray) -> float:
 |----|-----------|--------|-------------------|---------------------|
 | SC0.1 | GRPO-D cluster count | <10 distinct clusters | HDBSCAN on UMAP coords | `python -c "import json; print(json.load(open('outputs/grpo_metrics.json'))['n_clusters'])"` |
 | SC0.2 | Mode coverage gap | Misses >30% of fitness landscape | Compare to random baseline clusters | Manual analysis of cluster coverage |
-| SC0.3 | Stakeholder need confirmed | Diversity explicitly requested | Stakeholder interviews | Review `doc/stakeholder_requirements.md` |
+| SC0.3 | Stakeholder need confirmed | Diversity explicitly requested | Stakeholder interviews | Review `docs/stakeholder_requirements.md` |
 | SC0.4 | Sample generation complete | 1000 valid peptides | Count and validate | `wc -l outputs/grpo_samples.csv` |
 | SC0.5 | All metrics computed | 5 diversity metrics | JSON contains all fields | Check `outputs/grpo_metrics.json` |
 | SC0.6 | Visualization complete | UMAP plot saved | File exists | `ls outputs/grpo_umap_clusters.png` |
@@ -620,8 +620,8 @@ def embedding_diversity(embeddings: np.ndarray) -> float:
 - [ ] `outputs/comparison_plot.png` - Side-by-side comparison
 
 **Documentation:**
-- [ ] `doc/stakeholder_requirements.md` - Documented diversity needs
-- [ ] `doc/phase0_decision.md` - Go/no-go decision with rationale
+- [ ] `docs/stakeholder_requirements.md` - Documented diversity needs
+- [ ] `docs/phase0_decision.md` - Go/no-go decision with rationale
 - [ ] `notebooks/gflownet-phase-0-validation.ipynb` - Analysis notebook
 
 **Review:**
@@ -834,12 +834,12 @@ The analysis notebook `notebooks/gflownet-phase-0-validation.ipynb` should have:
 ## 10. Notes & References
 
 ### Master PRD Reference
-- Master PRD: `doc/gflownet-master-prd.md`
+- Master PRD: `docs/gflownet-master-prd.md`
 - Phase 0 section: 5.0 (lines 462-486)
 
 ### Related Documents
-- Phase -1 PRD: `doc/prd-phase--1-data-acquisition.md` (prerequisite)
-- Stakeholder requirements template: `doc/stakeholder_requirements.md`
+- Phase -1 PRD: `docs/prd-phase--1-data-acquisition.md` (prerequisite)
+- Stakeholder requirements template: `docs/stakeholder_requirements.md`
 
 ### External References
 - UMAP documentation: https://umap-learn.readthedocs.io/
