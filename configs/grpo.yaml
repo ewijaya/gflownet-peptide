@@ -5,8 +5,8 @@
 
 # Model Configuration
 # Options: littleworth/protgpt2-distilled-tiny (fastest), littleworth/protgpt2-distilled-medium
-model_name: "littleworth/protgpt2-distilled-tiny"  # Tiny for fast iteration
-hidden_dim: 256
+model_name: "littleworth/protgpt2-distilled-medium"  # Medium for better quality
+hidden_dim: 512  # Value head hidden dim (model n_embd=1024 is read automatically)
 
 # Peptide Constraints
 min_length: 10
