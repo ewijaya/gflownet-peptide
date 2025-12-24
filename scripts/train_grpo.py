@@ -2,11 +2,15 @@
 """Training script for GRPO-D peptide generator.
 
 This script trains a GRPO-D (Group Relative Policy Optimization with Diversity)
-model for peptide generation using ESM-2 pseudo-likelihood as the reward function.
+model for peptide generation using either ESM-2 pseudo-likelihood or the improved
+entropy-gated reward function.
 
 Example usage:
-    # Full training
-    python scripts/train_grpo.py --config configs/grpo.yaml
+    # Full training with original ESM-2 pseudo-likelihood reward
+    python scripts/train_grpo.py --config configs/grpo.yaml --reward_type esm2_pll
+
+    # Full training with improved reward (entropy gate)
+    python scripts/train_grpo.py --config configs/grpo_improved.yaml --reward_type improved
 
     # Dry run (10 iterations)
     python scripts/train_grpo.py --config configs/grpo.yaml --dry_run
@@ -147,6 +151,13 @@ def main():
         action="store_true",
         help="Disable wandb logging",
     )
+    parser.add_argument(
+        "--reward_type",
+        type=str,
+        default="esm2_pll",
+        choices=["esm2_pll", "improved"],
+        help="Reward function type: esm2_pll (original) or improved (with entropy gate)",
+    )
 
     args = parser.parse_args()
 
@@ -221,14 +232,34 @@ def main():
         use_wandb = False
 
     # Initialize reward function
-    logger.info(f"Loading ESM-2 reward model: {config['esm_model']}")
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    reward_fn = ESM2Reward(
-        model_name=config["esm_model"],
-        device=device,
-        normalize=True,
-        temperature=1.0,
-    )
+
+    # Check if reward_type is specified in config, otherwise use CLI arg
+    reward_type = config.get("reward_type", args.reward_type)
+
+    if reward_type == "esm2_pll":
+        logger.info(f"Loading ESM-2 pseudo-likelihood reward: {config['esm_model']}")
+        reward_fn = ESM2Reward(
+            model_name=config["esm_model"],
+            device=device,
+            normalize=True,
+            temperature=1.0,
+        )
+    elif reward_type == "improved":
+        from gflownet_peptide.rewards.improved_reward import ImprovedReward
+        logger.info(f"Loading improved reward (entropy-gated): {config['esm_model']}")
+        reward_fn = ImprovedReward(
+            model_name=config["esm_model"],
+            device=device,
+            entropy_threshold=config.get("entropy_threshold", 0.5),
+            entropy_sharpness=config.get("entropy_sharpness", 10.0),
+            min_length=config.get("min_length", 10),
+            length_sharpness=config.get("length_sharpness", 0.5),
+            embedding_temperature=config.get("embedding_temperature", 10.0),
+            normalize=True,
+        )
+    else:
+        raise ValueError(f"Unknown reward type: {reward_type}")
 
     # Initialize trainer
     logger.info("Initializing GRPO-D trainer...")

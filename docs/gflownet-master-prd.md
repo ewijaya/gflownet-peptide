@@ -1,8 +1,8 @@
 # Product Requirements Document: GFlowNet for Diverse Therapeutic Peptide Generation
 
 **Project Code:** Idea F / P16 (proposed)
-**Version:** 1.0
-**Date:** December 22, 2025
+**Version:** 1.1
+**Date:** December 24, 2025
 **Author:** Computational ISDD Team
 **Status:** Draft
 
@@ -269,6 +269,18 @@ For linear autoregressive generation, the backward policy is deterministic: the 
 | Output transform | exp(·) or softplus(·) to ensure R ≥ 0 |
 | Inference | Frozen during GFlowNet training |
 
+**Reward Options (Updated based on Phase 0 findings):**
+
+| Reward Type | Description | Status |
+|-------------|-------------|--------|
+| ESM-2 Pseudo-likelihood | `R = (1/L) Σ log P(aa_i \| context)` | ❌ Broken - rewards repetitive sequences |
+| Improved (Entropy-gated) | `R = R_nat × G_ent × G_len` | ✅ Validated - penalizes repetition |
+| Composite (trained) | Stability + Binding + Naturalness | Phase 1 target |
+
+**Warning:** ESM-2 pseudo-likelihood is vulnerable to reward hacking. Sequences like `QQQQQQQQQQ` receive high scores (~0.93) because each position is trivially predictable. Use the improved reward or trained composite reward instead.
+
+See `docs/reward_formulation.md` for full mathematical specification of all reward types.
+
 **Composite Reward:**
 
 ```python
@@ -461,28 +473,78 @@ def load_propedia(data_path: str) -> tuple[list[str], np.ndarray]:
 
 ### Phase 0: Validation (Is GFlowNet Needed?)
 
-**Duration:** 1 week
+**Duration:** 2 weeks (expanded from 1 week due to reward investigation)
 **Objective:** Confirm GRPO-D has genuine diversity limitations that GFlowNet can solve
 
-#### 5.0.1 Activities
+**Note:** Phase 0 has been subdivided into 0a and 0b based on initial findings.
 
-| ID | Activity | Output |
-|----|----------|--------|
-| 0.1 | Generate 1000 peptides with GRPO-D (existing P14) | Peptide set |
-| 0.2 | Compute diversity metrics (see §7) | Metrics report |
-| 0.3 | Cluster sequences (UMAP + HDBSCAN) | Cluster visualization |
-| 0.4 | Compare to random high-fitness sampling | Baseline comparison |
-| 0.5 | Stakeholder interview: diversity needs | Requirements doc |
+#### 5.0.1 Phase 0a: Initial GRPO-D Evaluation (Completed)
 
-#### 5.0.2 Success Criteria (Phase Gate)
+| ID | Activity | Output | Status |
+|----|----------|--------|--------|
+| 0a.1 | Train GRPO-D with ESM-2 pseudo-likelihood reward | Trained model | ✅ Complete |
+| 0a.2 | Generate 128 top peptides | Peptide set | ✅ Complete |
+| 0a.3 | Compute diversity metrics | Metrics report | ✅ Complete |
+| 0a.4 | Cluster sequences (UMAP + HDBSCAN) | Visualization | ✅ Complete |
+| 0a.5 | Analyze reward hacking | Analysis report | ✅ Complete |
+
+**Phase 0a Findings:**
+
+| Metric | GRPO-D Result | Baseline |
+|--------|---------------|----------|
+| Mean reward | 0.816 | 0.828 |
+| Cluster count | 3 | 2 |
+| Embedding diversity | 0.336 | 0.094 |
+| **Sequences with repeats** | **97%** | - |
+
+**Critical Finding:** ESM-2 pseudo-likelihood reward is fundamentally broken for this use case. It rewards predictability, not biological viability. Sequences like `QQQQQQQQQQQQQQQQ` receive high scores (~0.93) because each position is trivially predictable from context.
+
+**Phase 0a Decision:** CONDITIONAL GO - Need to fix reward before determining if diversity problem is from reward or from GRPO-D.
+
+#### 5.0.2 Phase 0b: Improved Reward Validation (In Progress)
+
+| ID | Activity | Output | Status |
+|----|----------|--------|--------|
+| 0b.1 | Design improved reward (entropy gate) | `reward-design-analysis_2025-12-24.md` | ✅ Complete |
+| 0b.2 | Implement `ImprovedReward` class | `improved_reward.py` | ✅ Complete |
+| 0b.3 | Validate reward on known examples | `validate_reward.py` | ✅ Complete |
+| 0b.4 | Re-train GRPO-D with improved reward | Trained model | ⏳ Pending |
+| 0b.5 | Compare Phase 0a vs 0b results | Comparison report | ⏳ Pending |
+| 0b.6 | Update go/no-go decision | Decision doc | ⏳ Pending |
+
+**Improved Reward Design:**
+
+The improved reward addresses ESM-2 pseudo-likelihood's reward hacking vulnerability:
+
+```
+R_improved = R_naturalness × G_entropy × G_length
+```
+
+Where:
+- `R_naturalness`: ESM-2 embedding norm (protein-likeness in embedding space)
+- `G_entropy`: Sigmoid gate that zeros reward for low-entropy (repetitive) sequences
+- `G_length`: Sigmoid gate that zeros reward for too-short sequences
+
+**Validation Results (Phase 0b.3):**
+- R(real_peptide) > R(repetitive) for 100% of test pairs ✅
+- R(homopolymer) < 0.1 for all homopolymers ✅
+- R(real_peptide) > 0.5 for all real peptides ✅
+
+See: `docs/reward_formulation.md` Section 3 for full mathematical specification.
+
+#### 5.0.3 Success Criteria (Phase Gate)
 
 | Criterion | Target | Go/No-Go |
 |-----------|--------|----------|
-| GRPO-D cluster count | <10 distinct clusters | Go if <10 (diversity problem exists) |
-| Mode coverage gap | Misses >30% of known fitness peaks | Go if >30% |
-| Stakeholder need | Diversity explicitly requested | Go if yes |
+| GRPO-D cluster count (with improved reward) | <15 distinct clusters | Go if <15 (diversity problem persists) |
+| Repeat rate (with improved reward) | <20% sequences with 3+ AA repeats | No-Go if >20% (reward still broken) |
+| Embedding diversity (with improved reward) | <0.5 | Go if <0.5 (GRPO-D still limited) |
+| Quality maintained | Mean R > 0.5 | No-Go if <0.5 (reward too strict) |
 
-**Decision:** If GRPO-D already achieves sufficient diversity, stop here. GFlowNet is not needed.
+**Decision Logic:**
+- If improved reward + GRPO-D shows low diversity (<15 clusters, emb_div <0.5): **CLEAR GO** for GFlowNet (problem is GRPO-D, not reward)
+- If improved reward + GRPO-D shows high diversity (>15 clusters, emb_div >0.5): **NO-GO** for GFlowNet (problem was reward, GRPO-D is sufficient)
+- If improved reward causes quality collapse (mean R <0.5): **REVISIT** reward design
 
 ---
 
@@ -845,6 +907,7 @@ def evaluate_generator(generator, reward_model, n_samples=1000):
 |----|------|------------|--------|------------|
 | R1 | GRPO-D already sufficient (GFlowNet not needed) | Medium | High | Phase 0 validation before investment |
 | R2 | Reward model doesn't generalize to peptides | High | High | Validate on peptide-specific data; use FLIP + Propedia |
+| **R2a** | **ESM-2 pseudo-likelihood rewards repetitive sequences** | **Confirmed** | **High** | **Use entropy-gated improved reward (Phase 0b)** |
 | R3 | GFlowNet training unstable (log_Z diverges) | Medium | Medium | Use SubTB; gradient clipping; smaller learning rate |
 | R4 | Proportional sampling not optimal for task | Low | Medium | Temperature parameter (R^β) for control |
 | R5 | Scooped by Bengio lab | Medium | Medium | Execute quickly; differentiate on GRPO comparison |
@@ -1003,3 +1066,4 @@ Title: Diverse Therapeutic Peptide Generation with GFlowNet:
 | Version | Date | Changes |
 |---------|------|---------|
 | 1.0 | 2025-12-22 | Initial draft |
+| 1.1 | 2025-12-24 | Updated Phase 0 with 0a/0b subdivision; Added ESM-2 reward hacking findings; Added improved reward specification; Updated risk register with R2a |

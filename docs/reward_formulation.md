@@ -6,11 +6,12 @@ This document provides a comprehensive mathematical description of the reward fu
 
 1. [Overview](#1-overview)
 2. [ESM-2 Pseudo-Likelihood Reward](#2-esm-2-pseudo-likelihood-reward)
-3. [Composite Multi-Objective Reward](#3-composite-multi-objective-reward)
-4. [Diversity-Augmented Reward (GRPO-D)](#4-diversity-augmented-reward-grpo-d)
-5. [Integration with GRPO Training](#5-integration-with-grpo-training)
-6. [Hyperparameter Summary](#6-hyperparameter-summary)
-7. [References](#7-references)
+3. [Improved Reward with Entropy Gate](#3-improved-reward-with-entropy-gate)
+4. [Composite Multi-Objective Reward](#4-composite-multi-objective-reward)
+5. [Diversity-Augmented Reward (GRPO-D)](#5-diversity-augmented-reward-grpo-d)
+6. [Integration with GRPO Training](#6-integration-with-grpo-training)
+7. [Hyperparameter Summary](#7-hyperparameter-summary)
+8. [References](#8-references)
 
 ---
 
@@ -22,12 +23,13 @@ $$P(x) \propto R(x)^\beta$$
 
 where $\beta$ is the inverse temperature controlling the sharpness of the distribution.
 
-Our system implements two complementary reward formulations:
+Our system implements three reward formulations:
 
-1. **ESM-2 Pseudo-Likelihood Reward**: Measures sequence naturalness using a pretrained protein language model
-2. **Composite Multi-Objective Reward**: Combines stability, binding affinity, and naturalness predictions
+1. **ESM-2 Pseudo-Likelihood Reward**: Measures sequence naturalness using a pretrained protein language model (original, prone to reward hacking)
+2. **Improved Reward with Entropy Gate**: Addresses reward hacking by combining embedding naturalness with entropy-based filtering (Phase 0b)
+3. **Composite Multi-Objective Reward**: Combines stability, binding affinity, and naturalness predictions (Phase 1+)
 
-Both formulations leverage ESM-2 (Evolutionary Scale Modeling) as the backbone encoder for extracting sequence representations.
+All formulations leverage ESM-2 (Evolutionary Scale Modeling) as the backbone encoder for extracting sequence representations.
 
 ---
 
@@ -110,11 +112,182 @@ $$R_{\text{PLL}}(x) = -10.0 \quad \text{if } |x| < 3$$
 
 This prevents degenerate short sequences from receiving artificially high scores.
 
+### 2.8 Limitations: Reward Hacking
+
+**Critical Issue**: ESM-2 pseudo-likelihood is vulnerable to reward hacking via repetitive sequences. Homopolymers like `QQQQQQQQQQ` receive high scores because each position is trivially predictable from context:
+
+$$P_{\text{ESM}}(Q \mid \text{QQQQQ[MASK]QQQQ}) \approx 0.99$$
+
+This leads to:
+- 97% of generated sequences containing repetitive patterns
+- Mode collapse to degenerate sequences
+- High sequence diversity (edit distance) but low embedding diversity
+
+**Evidence from Phase 0a Training**:
+
+| Sequence | Normalized Reward |
+|----------|-------------------|
+| `MRQQQQQQQQQQQQQQQQNNNNNNNNNNNN` | 0.932 |
+| `MPGNNNNNNNNQQQQQQQQQQQQQQQQQQQ` | 0.929 |
+| `MKTLLILAVVALACARSSAQAANPF` (real) | ~0.70 |
+
+The improved reward (Section 3) addresses this fundamental flaw.
+
 ---
 
-## 3. Composite Multi-Objective Reward
+## 3. Improved Reward with Entropy Gate
 
-### 3.1 Architecture Overview
+### 3.1 Motivation
+
+The ESM-2 pseudo-likelihood reward (Section 2) suffers from reward hacking: repetitive sequences receive high scores because each amino acid is predictable from its homogeneous context. The improved reward addresses this by:
+
+1. Replacing pseudo-likelihood with embedding-based naturalness
+2. Adding an entropy gate to penalize low-complexity sequences
+3. Adding a length gate to penalize too-short sequences
+
+### 3.2 Architecture Overview
+
+```
+                    ┌─────────────────────────────────────┐
+                    │         Peptide Sequence x          │
+                    └─────────────────┬───────────────────┘
+                                      │
+                    ┌─────────────────┼─────────────────┐
+                    │                 │                 │
+                    ▼                 ▼                 ▼
+           ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
+           │ ESM-2        │  │ Entropy      │  │ Length       │
+           │ Embedding    │  │ Computation  │  │ Check        │
+           │ + Norm       │  │              │  │              │
+           └──────┬───────┘  └──────┬───────┘  └──────┬───────┘
+                  │                 │                 │
+                  ▼                 ▼                 ▼
+           ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
+           │ Sigmoid      │  │ Sigmoid      │  │ Sigmoid      │
+           │ Naturalness  │  │ Entropy Gate │  │ Length Gate  │
+           │ [0, 1]       │  │ [0, 1]       │  │ [0, 1]       │
+           └──────┬───────┘  └──────┬───────┘  └──────┬───────┘
+                  │                 │                 │
+                  └────────────────┬┴─────────────────┘
+                                   │
+                                   ▼
+                    ┌─────────────────────────────────────┐
+                    │  R = naturalness × entropy_gate     │
+                    │                  × length_gate      │
+                    └─────────────────────────────────────┘
+```
+
+### 3.3 Component 1: Embedding Naturalness
+
+Instead of pseudo-likelihood, we use the ESM-2 embedding norm as a proxy for sequence quality:
+
+$$R_{\text{nat}}(x) = \sigma\left(\frac{\|\mathbf{e}(x)\|_2}{\tau_{\text{emb}}}\right)$$
+
+where:
+- $\mathbf{e}(x) = \frac{1}{L} \sum_{i=1}^{L} \mathbf{h}_i^{(l)}$ is the mean-pooled embedding
+- $\|\cdot\|_2$ is the L2 norm
+- $\tau_{\text{emb}} = 10.0$ is the temperature parameter
+- $\sigma$ is the sigmoid function
+
+**Rationale**: Real proteins occupy a well-defined region in ESM-2's embedding space with consistent norms. Degenerate sequences (repetitive or random) have abnormal embedding characteristics.
+
+**Key Difference from Pseudo-Likelihood**:
+- Pseudo-likelihood asks: "Is each amino acid predictable?" → Repetition is predictable → High score
+- Embedding norm asks: "Does this look like a real protein in embedding space?" → Repetition is abnormal → Lower score
+
+### 3.4 Component 2: Entropy Gate
+
+The entropy gate penalizes low-complexity sequences using Shannon entropy of the amino acid distribution:
+
+$$H(x) = -\sum_{a \in \mathcal{A}} p_a \log_2 p_a$$
+
+where $p_a = \frac{\text{count}(a, x)}{|x|}$ is the frequency of amino acid $a$ in sequence $x$.
+
+**Normalized Entropy**:
+
+$$\hat{H}(x) = \frac{H(x)}{\log_2 20}$$
+
+This normalizes to $[0, 1]$ where:
+- $\hat{H} = 0$: All same amino acid (e.g., `QQQQQQQQQQ`)
+- $\hat{H} = 1$: Uniform distribution of all 20 amino acids
+
+**Soft Gate**:
+
+$$G_{\text{ent}}(x) = \sigma\left(k_{\text{ent}} \cdot (\hat{H}(x) - \theta_{\text{ent}})\right)$$
+
+where:
+- $\theta_{\text{ent}} = 0.5$ is the entropy threshold (50% of maximum)
+- $k_{\text{ent}} = 10.0$ is the sigmoid sharpness
+
+**Behavior**:
+- $\hat{H} < \theta_{\text{ent}}$: Gate → 0 (penalize)
+- $\hat{H} > \theta_{\text{ent}}$: Gate → 1 (allow)
+
+### 3.5 Component 3: Length Gate
+
+The length gate penalizes sequences shorter than a minimum length:
+
+$$G_{\text{len}}(x) = \sigma\left(k_{\text{len}} \cdot (|x| - L_{\min})\right)$$
+
+where:
+- $L_{\min} = 10$ is the minimum peptide length
+- $k_{\text{len}} = 0.5$ is the sigmoid sharpness
+
+**Behavior**:
+- $|x| < L_{\min}$: Gate → 0 (penalize short sequences)
+- $|x| \geq L_{\min}$: Gate → 1 (allow)
+
+### 3.6 Combined Improved Reward
+
+The three components are combined multiplicatively:
+
+$$R_{\text{improved}}(x) = R_{\text{nat}}(x) \times G_{\text{ent}}(x) \times G_{\text{len}}(x)$$
+
+**Properties**:
+- All components in $[0, 1]$ → Combined reward in $[0, 1]$
+- Multiplicative combination: ALL components must be good for high reward
+- If any gate → 0, total reward → 0
+
+### 3.7 Validation Results
+
+| Sequence Type | Example | Entropy | Entropy Gate | Total Reward |
+|---------------|---------|---------|--------------|--------------|
+| Real peptide | `MKTLLILAVVALACARSSAQAANPF` | 0.78 | 0.94 | **0.60** |
+| Homopolymer | `QQQQQQQQQQQQQQQQQQQQQQQQQQ` | 0.00 | 0.007 | **0.005** |
+| Alternating | `AQAQAQAQAQAQAQAQAQAQAQAQ` | 0.23 | 0.06 | **0.04** |
+| All different | `ACDEFGHIKLMNPQRSTVWY` | 1.00 | 0.99 | **0.64** |
+
+**Pass Criteria Met**:
+- R(real) > R(repetitive) for 100% of test pairs ✓
+- R(homopolymer) < 0.1 for all homopolymers ✓
+- R(real) > 0.5 for all real peptides ✓
+
+### 3.8 Hyperparameters
+
+| Parameter | Symbol | Default | Description |
+|-----------|--------|---------|-------------|
+| ESM model | - | `esm2_t6_8M_UR50D` | Backbone for embeddings |
+| Embedding temperature | $\tau_{\text{emb}}$ | 10.0 | Sigmoid temperature for naturalness |
+| Entropy threshold | $\theta_{\text{ent}}$ | 0.5 | Minimum normalized entropy |
+| Entropy sharpness | $k_{\text{ent}}$ | 10.0 | Sigmoid slope for entropy gate |
+| Min length | $L_{\min}$ | 10 | Minimum peptide length |
+| Length sharpness | $k_{\text{len}}$ | 0.5 | Sigmoid slope for length gate |
+
+### 3.9 Implementation Reference
+
+| Component | Source File | Key Lines |
+|-----------|-------------|-----------|
+| ImprovedReward class | `gflownet_peptide/rewards/improved_reward.py` | 1-250 |
+| Entropy computation | `gflownet_peptide/rewards/improved_reward.py` | 97-116 |
+| Entropy gate | `gflownet_peptide/rewards/improved_reward.py` | 118-131 |
+| Length gate | `gflownet_peptide/rewards/improved_reward.py` | 133-145 |
+| Embedding naturalness | `gflownet_peptide/rewards/improved_reward.py` | 147-180 |
+
+---
+
+## 4. Composite Multi-Objective Reward
+
+### 4.1 Architecture Overview
 
 The composite reward combines three property-specific predictions using a shared ESM-2 backbone:
 
@@ -156,7 +329,7 @@ The composite reward combines three property-specific predictions using a shared
                     └─────────────────────────────────────┘
 ```
 
-### 3.2 Embedding Extraction
+### 4.2 Embedding Extraction
 
 ESM-2 produces contextualized representations $\mathbf{h}_i^{(l)} \in \mathbb{R}^d$ for each position $i$ at layer $l$. The sequence embedding is computed via mean pooling, excluding special tokens:
 
@@ -177,7 +350,7 @@ where:
 | `esm2_t33_650M_UR50D` | 33 | 1280 | 650M |
 | `esm2_t36_3B_UR50D` | 36 | 2560 | 3B |
 
-### 3.3 Reward Head Architecture
+### 4.3 Reward Head Architecture
 
 Each property-specific reward is predicted by an MLP head:
 
@@ -188,7 +361,7 @@ where:
 - $n$ is the number of layers (default: 2)
 - Hidden dimension: 256 (default)
 
-### 3.4 Stability Reward
+### 4.4 Stability Reward
 
 The stability reward predicts thermal stability, trained on FLIP benchmark data:
 
@@ -201,7 +374,7 @@ $$R_S(x) = \exp\left(\text{MLP}_S(\mathbf{e}(x))\right)$$
 
 **Training Target**: $\Delta\Delta G$ (change in Gibbs free energy upon mutation)
 
-### 3.5 Binding Affinity Reward
+### 4.5 Binding Affinity Reward
 
 The binding reward predicts peptide-protein binding affinity, trained on Propedia data:
 
@@ -214,7 +387,7 @@ $$R_B(x) = \text{softplus}\left(\text{MLP}_B(\mathbf{e}(x))\right) = \log\left(1
 
 **Derivation**: Softplus is chosen over exponential to prevent numerical overflow for high-affinity predictions while maintaining gradient flow for low values.
 
-### 3.6 Naturalness Reward
+### 4.6 Naturalness Reward
 
 The naturalness reward uses embedding norm as a proxy for sequence quality:
 
@@ -232,7 +405,7 @@ where:
 - Monotonically increasing in embedding norm
 - Temperature $\tau_N$ controls sensitivity
 
-### 3.7 Composite Reward Formulation
+### 4.7 Composite Reward Formulation
 
 Individual rewards are combined using a weighted geometric mean:
 
@@ -257,7 +430,7 @@ $$R_{\text{composite}}(x) = R_S(x)^{w_S} \cdot R_B(x)^{w_B} \cdot R_N(x)^{w_N}$$
 
 $$\log R_{\text{composite}}(x) = w_S \log R_S(x) + w_B \log R_B(x) + w_N \log R_N(x)$$
 
-### 3.8 Non-Negativity Transforms Summary
+### 4.8 Non-Negativity Transforms Summary
 
 | Transform | Formula | Range | Use Case | Gradient at 0 |
 |-----------|---------|-------|----------|---------------|
@@ -268,13 +441,13 @@ $$\log R_{\text{composite}}(x) = w_S \log R_S(x) + w_B \log R_B(x) + w_N \log R_
 
 ---
 
-## 4. Diversity-Augmented Reward (GRPO-D)
+## 5. Diversity-Augmented Reward (GRPO-D)
 
-### 4.1 Motivation
+### 5.1 Motivation
 
 Pure reward maximization can lead to mode collapse, where the generator produces repetitive high-reward sequences. Diversity-augmented rewards explicitly encourage exploration of the sequence space.
 
-### 4.2 Per-Peptide Diversity Score
+### 5.2 Per-Peptide Diversity Score
 
 For a batch of peptides $\mathcal{B} = \{x_1, x_2, \ldots, x_n\}$, each peptide receives a diversity score:
 
@@ -284,7 +457,7 @@ where:
 - $\lambda_{\text{AA}} = 0.7$ (amino acid frequency weight)
 - $\lambda_{\text{seq}} = 0.3$ (sequence dissimilarity weight)
 
-### 4.3 Amino Acid Frequency Diversity
+### 5.3 Amino Acid Frequency Diversity
 
 This component rewards peptides containing rare amino acids within the batch:
 
@@ -299,7 +472,7 @@ where:
 
 **Derivation**: This formulation is analogous to inverse document frequency (IDF) in information retrieval, where rare terms receive higher weights.
 
-### 4.4 Sequence Dissimilarity
+### 5.4 Sequence Dissimilarity
 
 This component measures how different a peptide is from others in the batch using normalized Levenshtein distance:
 
@@ -315,7 +488,7 @@ $$d_{\text{Lev}}(x, y) = \min \text{ number of single-character edits (insert, d
 
 **Computational Optimization**: For large batches, we sample a subset of $m = 50$ reference peptides to reduce complexity from $\mathcal{O}(n^2 L^2)$ to $\mathcal{O}(nm L^2)$.
 
-### 4.5 Normalization
+### 5.5 Normalization
 
 Raw diversity scores are normalized within each batch using min-max scaling:
 
@@ -325,14 +498,14 @@ where $D_{\min} = \min_{j} D(x_j)$ and $D_{\max} = \max_{j} D(x_j)$.
 
 If all diversity scores are identical ($D_{\max} = D_{\min}$), we set $\hat{D}(x_i) = 0.5$.
 
-### 4.6 Combined Reward
+### 5.6 Combined Reward
 
 The final reward combines the base reward with the diversity bonus:
 
 $$R_{\text{combined}}(x) = (1 - \omega_D) \cdot R_{\text{base}}(x) + \omega_D \cdot \hat{D}(x)$$
 
 where:
-- $R_{\text{base}}(x)$ is either $R_{\text{PLL}}$ or $R_{\text{composite}}$
+- $R_{\text{base}}(x)$ is either $R_{\text{PLL}}$, $R_{\text{improved}}$, or $R_{\text{composite}}$
 - $\omega_D = 0.15$ is the diversity weight (default)
 
 **Properties**:
@@ -343,13 +516,13 @@ where:
 
 ---
 
-## 5. Integration with GRPO Training
+## 6. Integration with GRPO Training
 
-### 5.1 Group Relative Policy Optimization
+### 6.1 Group Relative Policy Optimization
 
 GRPO extends REINFORCE with group-wise normalization and KL regularization. The combined reward feeds into advantage computation.
 
-### 5.2 Advantage Computation
+### 6.2 Advantage Computation
 
 For peptides grouped by prompt $g$, advantages are computed as:
 
@@ -362,7 +535,7 @@ where:
 
 **Derivation**: Group normalization reduces variance in advantage estimates, stabilizing training. Centering around the group mean ensures both positive and negative advantages, enabling contrastive learning.
 
-### 5.3 Policy Gradient Loss
+### 6.3 Policy Gradient Loss
 
 The policy loss encourages actions leading to high-advantage outcomes:
 
@@ -372,7 +545,7 @@ In practice, with a batch of samples:
 
 $$\mathcal{L}_{\text{policy}} = -\frac{1}{n} \sum_{i=1}^{n} \left(\frac{1}{|x_i|} \sum_{t=1}^{|x_i|} \log \pi_\theta(x_{i,t} \mid x_{i,<t})\right) \cdot A(x_i)$$
 
-### 5.4 KL Divergence Penalty
+### 6.4 KL Divergence Penalty
 
 To prevent the policy from deviating too far from the reference model:
 
@@ -384,11 +557,11 @@ $$\hat{D}_{\text{KL}} = \mathbb{E}_{x \sim \pi_\theta}\left[\frac{\pi_{\text{ref
 
 where $\beta = 0.04$ (default).
 
-### 5.5 Total GRPO Loss
+### 6.5 Total GRPO Loss
 
 $$\mathcal{L}_{\text{GRPO}} = \mathcal{L}_{\text{policy}} + \mathcal{L}_{\text{KL}}$$
 
-### 5.6 Training Pipeline
+### 6.6 Training Pipeline
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -455,9 +628,9 @@ $$\mathcal{L}_{\text{GRPO}} = \mathcal{L}_{\text{policy}} + \mathcal{L}_{\text{K
 
 ---
 
-## 6. Hyperparameter Summary
+## 7. Hyperparameter Summary
 
-### 6.1 ESM-2 Pseudo-Likelihood Reward
+### 7.1 ESM-2 Pseudo-Likelihood Reward
 
 | Parameter | Symbol | Default | Description |
 |-----------|--------|---------|-------------|
@@ -467,7 +640,18 @@ $$\mathcal{L}_{\text{GRPO}} = \mathcal{L}_{\text{policy}} + \mathcal{L}_{\text{K
 | Min observations | $N$ | 10 | Before normalization starts |
 | Min sequence length | - | 3 | Penalty for shorter |
 
-### 6.2 Composite Reward
+### 7.2 Improved Reward (Entropy Gate)
+
+| Parameter | Symbol | Default | Description |
+|-----------|--------|---------|-------------|
+| ESM model | - | `esm2_t6_8M_UR50D` | Backbone for embeddings |
+| Embedding temperature | $\tau_{\text{emb}}$ | 10.0 | Sigmoid temperature for naturalness |
+| Entropy threshold | $\theta_{\text{ent}}$ | 0.5 | Minimum normalized entropy |
+| Entropy sharpness | $k_{\text{ent}}$ | 10.0 | Sigmoid slope for entropy gate |
+| Min length | $L_{\min}$ | 10 | Minimum peptide length |
+| Length sharpness | $k_{\text{len}}$ | 0.5 | Sigmoid slope for length gate |
+
+### 7.3 Composite Reward
 
 | Parameter | Symbol | Default | Description |
 |-----------|--------|---------|-------------|
@@ -481,7 +665,7 @@ $$\mathcal{L}_{\text{GRPO}} = \mathcal{L}_{\text{policy}} + \mathcal{L}_{\text{K
 | Naturalness weight | $w_N$ | 0.5 | Geometric mean weight |
 | Naturalness temp | $\tau_N$ | 10.0 | Sigmoid temperature |
 
-### 6.3 Diversity (GRPO-D)
+### 7.4 Diversity (GRPO-D)
 
 | Parameter | Symbol | Default | Description |
 |-----------|--------|---------|-------------|
@@ -490,7 +674,7 @@ $$\mathcal{L}_{\text{GRPO}} = \mathcal{L}_{\text{policy}} + \mathcal{L}_{\text{K
 | Sequence weight | $\lambda_{\text{seq}}$ | 0.3 | Diversity component weight |
 | Max compare | $m$ | 50 | Reference peptides for Levenshtein |
 
-### 6.4 GRPO Training
+### 7.5 GRPO Training
 
 | Parameter | Symbol | Default | Description |
 |-----------|--------|---------|-------------|
@@ -503,21 +687,21 @@ $$\mathcal{L}_{\text{GRPO}} = \mathcal{L}_{\text{policy}} + \mathcal{L}_{\text{K
 
 ---
 
-## 7. References
+## 8. References
 
-### 7.1 ESM-2
+### 8.1 ESM-2
 
 Lin, Z., et al. (2023). Evolutionary-scale prediction of atomic-level protein structure with a language model. *Science*, 379(6637), 1123-1130.
 
-### 7.2 Pseudo-Likelihood Scoring
+### 8.2 Pseudo-Likelihood Scoring
 
 Salazar, J., et al. (2020). Masked language model scoring. *Proceedings of ACL*, 2699-2712.
 
-### 7.3 GRPO
+### 8.3 GRPO
 
 Shao, Z., et al. (2024). DeepSeekMath: Pushing the limits of mathematical reasoning in open language models. *arXiv preprint arXiv:2402.03300*.
 
-### 7.4 GFlowNets
+### 8.4 GFlowNets
 
 Bengio, E., et al. (2021). Flow network based generative models for non-iterative diverse candidate generation. *NeurIPS*, 34, 27381-27394.
 
@@ -527,7 +711,8 @@ Bengio, E., et al. (2021). Flow network based generative models for non-iterativ
 
 | Component | Source File | Key Lines |
 |-----------|-------------|-----------|
-| ESM-2 Pseudo-Likelihood | `gflownet_peptide/rewards/esm2_reward.py` | 55-221 |
+| ESM-2 Pseudo-Likelihood | `gflownet_peptide/rewards/esm2_reward.py` | 55-278 |
+| Improved Reward | `gflownet_peptide/rewards/improved_reward.py` | 1-250 |
 | ESM Backbone | `gflownet_peptide/models/reward_model.py` | 18-101 |
 | Reward Head (MLP) | `gflownet_peptide/models/reward_model.py` | 104-162 |
 | Stability Reward | `gflownet_peptide/models/reward_model.py` | 165-202 |
@@ -543,4 +728,4 @@ Bengio, E., et al. (2021). Flow network based generative models for non-iterativ
 
 ---
 
-*Document generated for scientific publication. Last updated: 2024*
+*Document generated for scientific publication. Last updated: 2025-12-24*
