@@ -83,3 +83,12 @@ Main hyperparameters in `configs/default.yaml`:
 - `training.loss_type`: "trajectory_balance" or "sub_trajectory_balance"
 - `reward.temperature`: Controls reward sharpness
 - `generation.min_length`/`max_length`: 10-30 amino acids
+
+## Checkpoint Policy
+
+Save only the latest intermediate checkpoint by overwriting to avoid disk accumulation:
+
+- `{run_name}_latest.pt`: Overwritten at each save interval (for crash recovery)
+- `{run_name}_final.pt`: Saved once at training completion (permanent)
+
+After training completes, `_latest.pt` is redundant. Use `/clean-checkpoints` to remove it.
