@@ -96,3 +96,4 @@ wandb/
 
 # Misc
 etc/
+nohup.out
