@@ -645,39 +645,69 @@ gflownet_peptide/rewards/__init__.py  # Export ImprovedReward
 
 ## 6. Success Criteria
 
-| ID | Criterion | Target | Measurement |
-|----|-----------|--------|-------------|
-| SC0b.1 | Reward validation | R(good) > R(bad) for 100% of test pairs | `scripts/validate_reward.py` |
-| SC0b.2 | Repetitive sequences penalized | R(homopolymer) < 0.1 | Manual check |
-| SC0b.3 | Training completes | 1000 iterations | Log file |
-| SC0b.4 | Repeat rate reduced | <20% sequences with 3+ AA repeats | Analysis notebook |
-| SC0b.5 | Entropy improved | Mean sequence entropy > 0.6 | Analysis notebook |
-| SC0b.6 | Decision updated | Clear GO or NO-GO | `docs/phase0_decision.md` |
+### 6.1 Implementation Success Criteria
+
+| ID | Criterion | Target | Measurement | Status |
+|----|-----------|--------|-------------|--------|
+| SC0b.1 | Reward validation | R(good) > R(bad) for 100% of test pairs | `scripts/validate_reward.py` | ✅ Pass |
+| SC0b.2 | Repetitive sequences penalized | R(homopolymer) < 0.1 | Manual check | ✅ Pass |
+| SC0b.3 | Training completes | 1000 iterations without crash | Log file | ⏳ Pending |
+| SC0b.4 | Repeat rate reduced | <20% sequences with 3+ AA repeats | Analysis notebook | ⏳ Pending |
+| SC0b.5 | Entropy improved | Mean sequence entropy > 0.6 | Analysis notebook | ⏳ Pending |
+| SC0b.6 | Quality maintained | Mean reward > 0.5 | Analysis notebook | ⏳ Pending |
+
+### 6.2 Go/No-Go Decision Criteria
+
+The Phase 0b results will determine whether to proceed with GFlowNet implementation:
+
+| Outcome | Criteria | Decision | Next Step |
+|---------|----------|----------|-----------|
+| **CLEAR GO** | Cluster count <15 AND embedding diversity <0.5 AND repeat rate <20% | Proceed to GFlowNet | Phase 1: GFlowNet implementation |
+| **NO-GO** | Cluster count ≥15 AND embedding diversity ≥0.5 | GRPO-D is sufficient | Use GRPO-D with improved reward |
+| **REVISIT** | Mean reward <0.5 OR repeat rate >20% | Reward needs tuning | Adjust entropy threshold/sharpness |
+
+### 6.3 Comparison Metrics (Phase 0a vs Phase 0b)
+
+| Metric | Phase 0a (ESM-2 PLL) | Phase 0b Target | Improvement |
+|--------|----------------------|-----------------|-------------|
+| Mean reward | 0.816 | >0.5 | May decrease (expected) |
+| Cluster count | 3 | >10 | 3× improvement |
+| Embedding diversity | 0.336 | >0.4 | 20% improvement |
+| Sequences with repeats | 97% | <20% | 80% reduction |
+| Mean sequence entropy | ~0.3 | >0.6 | 2× improvement |
+
+### 6.4 Final Success Definition
+
+**Phase 0b is successful if:**
+1. ✅ Improved reward correctly penalizes repetitive sequences (validated)
+2. ⏳ Training completes without divergence
+3. ⏳ Generated peptides show significantly reduced repetition (<20%)
+4. ⏳ A clear GO or NO-GO decision can be made for GFlowNet
 
 ---
 
 ## 7. Deliverables Checklist
 
 **Implementation**:
-- [ ] `gflownet_peptide/rewards/improved_reward.py` - Improved reward class
-- [ ] `gflownet_peptide/rewards/__init__.py` - Updated exports
-- [ ] `scripts/validate_reward.py` - Reward validation script
-- [ ] `scripts/train_grpo.py` - Updated with `--reward_type`
-- [ ] `configs/grpo_improved.yaml` - New config file
+- [x] `gflownet_peptide/rewards/improved_reward.py` - Improved reward class
+- [x] `gflownet_peptide/rewards/__init__.py` - Updated exports
+- [x] `scripts/validate_reward.py` - Reward validation script
+- [x] `scripts/train_grpo.py` - Updated with `--reward_type`
+- [x] `configs/grpo_improved.yaml` - New config file
 
-**Training Outputs**:
+**Training Outputs** (pending training):
 - [ ] `checkpoints/grpo/<run>_final.pt` - Trained model
 - [ ] `results/grpo/<run>_peptides.csv` - Generated peptides
 - [ ] `results/grpo/<run>_stats.csv` - Training statistics
 - [ ] `logs/train_grpo_improved.log` - Training log
 
-**Analysis Outputs**:
+**Analysis Outputs** (pending training):
 - [ ] `outputs/grpo_improved_embeddings.npy` - ESM-2 embeddings
 - [ ] `outputs/grpo_improved_metrics.json` - Diversity metrics
 - [ ] `outputs/grpo_improved_umap.png` - UMAP visualization
 - [ ] `outputs/phase0_comparison.png` - Side-by-side comparison
 
-**Documentation**:
+**Documentation** (pending training):
 - [ ] `docs/phase0_decision.md` - Updated with Phase 0b findings
 - [ ] `notebooks/phase-0b-comparison.ipynb` - Comparison analysis
 
