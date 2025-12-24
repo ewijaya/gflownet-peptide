@@ -10,6 +10,17 @@
 
 This repository implements GFlowNet for generating diverse, high-quality therapeutic peptide candidates. Unlike reward-maximizing methods (PPO, GRPO) that converge to narrow sequence families, GFlowNet samples peptides **proportionally to their predicted fitness**, naturally producing diverse candidates without explicit diversity penalties.
 
+### Why Diversity Matters for Drug Discovery
+
+In therapeutic peptide development, **computational predictions often fail wet-lab validation**. When a generative model produces 20 candidates from the same structural family (mode collapse), a single point of failure—such as poor solubility, immunogenicity, or off-target binding—can invalidate the entire set.
+
+**Diverse candidates provide independent backup options:**
+- Multiple structural scaffolds reduce correlated failure risk
+- If one scaffold fails, others remain viable
+- Broader coverage of the fitness landscape increases hit rates
+
+Standard reward-maximizing methods (PPO, GRPO) converge to narrow sequence families, forcing a trade-off between quality and diversity. GFlowNet eliminates this trade-off by sampling proportionally to fitness—high-quality candidates across multiple structural families, giving wet-lab teams **multiple independent shots at success**.
+
 ### Key Features
 
 - **Intrinsic diversity**: Samples P(x) ∝ R(x) — no diversity penalty needed
