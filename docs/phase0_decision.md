@@ -10,7 +10,11 @@
 
 Phase 0b with the improved reward function has **dramatically improved diversity** compared to Phase 0a. The entropy-gated reward eliminates homopolymer sequences and maintains high sequence diversity. The remaining patterns (over-represented motifs, dipeptide repeats) establish the **baseline characteristics** that GFlowNet will be compared against.
 
-**Decision**: Proceed with GFlowNet implementation. Phase 0b results establish the GRPO-D baseline for the primary publication goal: *"First empirical comparison of GFlowNet vs GRPO for therapeutic peptide generation"*.
+**Decision**: Proceed with GFlowNet implementation. Both Phase 0a (Vanilla) and Phase 0b (Improved) results establish **two GRPO-D baselines** for the primary publication goal: *"First empirical comparison of GFlowNet vs GRPO for therapeutic peptide generation"*.
+
+**Three-Way Comparison Strategy**:
+- **GFlowNet vs GRPO-D Vanilla**: Demonstrates GFlowNet's robustness to reward hacking
+- **GFlowNet vs GRPO-D Improved**: Demonstrates GFlowNet's diversity advantage even with optimized reward
 
 ---
 
@@ -110,15 +114,25 @@ Most common 3-mers in top 20 peptides:
 2. **Publication goal requires comparison**: GFlowNet vs GRPO-D is the core contribution
 3. **Baseline characteristics defined**: Motif patterns, AA bias establish targets for GFlowNet
 
-### GRPO-D Baseline Metrics (for GFlowNet Comparison)
+### GRPO-D Baseline Metrics (Three-Way Comparison)
 
-| Metric | GRPO-D Value | GFlowNet Target |
-|--------|--------------|-----------------|
-| Diversity | 0.5447 | ≥2× (target: >1.0) |
-| Sequence entropy | 0.83 | ≥ GRPO-D |
-| Cluster count | 15 (K-means) | ≥3× (target: >45) |
-| Homopolymer rate | 10.9% | ≤ GRPO-D |
-| Unique sequences | 100% | 100% |
+| Metric | GRPO-D Vanilla (0a) | GRPO-D Improved (0b) | GFlowNet Target |
+|--------|---------------------|----------------------|-----------------|
+| Mean reward | 0.816 | 0.962 | ≥ Improved |
+| Homopolymer rate | **97%** | 10.9% | ≤ Improved |
+| Mean sequence entropy | ~0.30 | 0.83 | ≥ Improved |
+| Sequence diversity | 0.895 | 0.945 | ≥ Improved |
+| Embedding diversity | 0.336 | 0.093 | ≥2× Improved |
+| Cluster count | 3 | 15 (K-means) | ≥3× Improved |
+| 100% unique sequences | No | Yes | Yes |
+
+### Publication Comparison Strategy
+
+| Comparison | What It Demonstrates |
+|------------|---------------------|
+| **GFlowNet vs GRPO-D Vanilla** | GFlowNet is more robust to reward hacking (no homopolymers even without entropy gate) |
+| **GFlowNet vs GRPO-D Improved** | Even with fixed reward, GFlowNet achieves better mode coverage and diversity |
+| **GRPO-D Improved vs Vanilla** | Importance of reward design (entropy gating eliminates homopolymers) |
 
 ### Characteristics to Quantify in Phase 1 (Baseline)
 
@@ -147,13 +161,14 @@ Most common 3-mers in top 20 peptides:
 │     - Train to convergence                                      │
 │     - Generate peptide samples                                  │
 │                                                                 │
-│  Phase 4: GFlowNet vs GRPO-D Comparison                         │
-│     - Compare against Phase 1 baseline metrics                  │
-│     - Demonstrate diversity improvement                         │
-│     - Verify quality parity                                     │
+│  Phase 4: Three-Way Comparison                                  │
+│     - GFlowNet vs GRPO-D Vanilla (robustness to reward hacking) │
+│     - GFlowNet vs GRPO-D Improved (diversity with fixed reward) │
+│     - Comprehensive metrics comparison table                    │
 │                                                                 │
 │  Phase 5: Publication                                           │
 │     - "GFlowNet achieves Nx diversity vs GRPO-D"                │
+│     - "GFlowNet robust to reward hacking vs vanilla GRPO-D"     │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```

@@ -9,12 +9,22 @@
 
 ## 0. Phase 0 Decision Context
 
-**Phase 0 Outcome**: GRPO-D + improved reward establishes **baseline** for GFlowNet comparison
+**Phase 0 Outcome**: Both GRPO-D Vanilla (Phase 0a) and GRPO-D Improved (Phase 0b) establish **two baselines** for GFlowNet comparison
 
-Based on Phase 0b findings, the improved reward function (entropy-gated) significantly improved diversity:
-- Homopolymer rate: 97% → 10.9%
-- Sequence diversity: 0.895 → 0.945
-- Mean entropy: 0.30 → 0.83
+### Two GRPO-D Versions
+
+| Version | Reward Function | Key Results |
+|---------|-----------------|-------------|
+| **GRPO-D Vanilla (0a)** | ESM-2 pseudo-likelihood only | 97% homopolymers, diversity 0.336 |
+| **GRPO-D Improved (0b)** | Entropy gate + embedding naturalness | 10.9% homopolymers, diversity 0.945 |
+
+### Three-Way Comparison Strategy
+
+| Comparison | What It Demonstrates |
+|------------|---------------------|
+| **GFlowNet vs GRPO-D Vanilla** | GFlowNet robustness to reward hacking |
+| **GFlowNet vs GRPO-D Improved** | GFlowNet diversity advantage even with optimized reward |
+| **GRPO-D Improved vs Vanilla** | Importance of reward design |
 
 **Remaining Characteristics to Quantify** (baseline metrics for GFlowNet comparison):
 1. **AA bias**: W (3.9x), M (2.7x), H (2.2x), Y (2.1x) over-represented vs natural proteins
@@ -23,11 +33,11 @@ Based on Phase 0b findings, the improved reward function (entropy-gated) signifi
 
 **Phase 1 Dual Purpose**:
 1. Train reward model on FLIP/Propedia for improved peptide quality scoring
-2. **Establish GRPO-D baseline metrics** via biological validation (ESMFold, AA composition)
+2. **Establish GRPO-D baseline metrics** for BOTH versions via biological validation (ESMFold, AA composition)
 
 **Project Direction**: **GO for GFlowNet**
 - GFlowNet implementation will proceed (Phase 2)
-- Phase 0b/Phase 1 results establish the baseline that GFlowNet must improve upon
+- Both Phase 0a AND Phase 0b results establish baselines for three-way comparison
 - This enables the primary publication goal: *"First empirical comparison of GFlowNet vs GRPO for therapeutic peptide generation"*
 
 ---
@@ -96,14 +106,30 @@ Based on Phase 0b findings, the improved reward function (entropy-gated) signifi
 | Multi-task learning | Future work | Keep initial implementation simple |
 | Hyperparameter optimization for reward | Phase 3 | Focus on baseline functionality first |
 
-### 2.3 NEW: GRPO-D Baseline Characterization
+### 2.3 NEW: GRPO-D Baseline Characterization (Both Versions)
 
-To enable fair GFlowNet comparison, this phase establishes comprehensive GRPO-D baseline:
+To enable fair three-way GFlowNet comparison, this phase establishes comprehensive baselines for BOTH GRPO-D versions:
 
+**Phase 0a (Vanilla) Baseline**:
+1. Use existing metrics from `outputs/grpo_metrics.json`
+2. Document homopolymer dominance and low diversity as "worst case" baseline
+
+**Phase 0b (Improved) Baseline**:
 1. **Run ESMFold on Phase 0b peptides** to get pLDDT scores (structural plausibility)
 2. **Compare AA composition** to known therapeutic peptides (biological relevance)
 3. **Analyze motif frequency** vs natural peptide databases (novelty vs artificiality)
 4. **Document baseline metrics** that GFlowNet must improve upon in Phase 4
+
+**Three-Way Comparison Table** (to populate):
+
+| Metric | GRPO-D Vanilla | GRPO-D Improved | GFlowNet | Winner |
+|--------|----------------|-----------------|----------|--------|
+| Homopolymer rate | 97% | 10.9% | TBD | TBD |
+| Sequence entropy | ~0.30 | 0.83 | TBD | TBD |
+| Embedding diversity | 0.336 | 0.093 | TBD | TBD |
+| Cluster count | 3 | 15 | TBD | TBD |
+| Mean pLDDT | TBD | TBD | TBD | TBD |
+| AA KL divergence | TBD | TBD | TBD | TBD |
 
 ### 2.4 Dependencies
 
@@ -960,19 +986,33 @@ These metrics establish the baseline that GFlowNet must improve upon in Phase 4.
 | SC1.14 | Diversity (from Phase 0b) | 0.5447 | Diversity baseline for GFlowNet to beat |
 | SC1.15 | Sequence entropy | 0.83 | Complexity baseline |
 
-### 5.3 GFlowNet Comparison Targets (for Phase 4)
+### 5.3 GFlowNet Comparison Targets (Three-Way for Phase 4)
 
-GFlowNet success will be measured against these GRPO-D baselines:
+GFlowNet success will be measured against BOTH GRPO-D baselines:
 
-| Metric | GRPO-D Baseline | GFlowNet Target | Success Criterion |
+**Comparison A: GFlowNet vs GRPO-D Vanilla (Robustness)**
+
+| Metric | GRPO-D Vanilla | GFlowNet Target | Success Criterion |
+|--------|----------------|-----------------|-------------------|
+| Homopolymer rate | 97% | <20% | Robust to reward hacking |
+| Sequence entropy | ~0.30 | >0.6 | No mode collapse |
+| Embedding diversity | 0.336 | >0.336 | Better mode coverage |
+
+**Comparison B: GFlowNet vs GRPO-D Improved (Diversity)**
+
+| Metric | GRPO-D Improved | GFlowNet Target | Success Criterion |
 |--------|-----------------|-----------------|-------------------|
-| Diversity | 0.5447 | Higher | ≥2× improvement |
+| Sequence diversity | 0.945 | ≥0.945 | At least as diverse |
+| Cluster count | 15 (K-means) | ≥45 | ≥3× more modes |
 | Mean pLDDT | TBD (Phase 1) | ≥ GRPO-D | No quality loss |
 | AA KL divergence | TBD (Phase 1) | ≤ GRPO-D | No naturalness loss |
-| Cluster count | 15 (K-means) | Higher | ≥3× more modes |
-| Proportionality R² | N/A (GRPO-D) | ≥0.8 | GFlowNet-specific |
+| Proportionality R² | N/A | ≥0.8 | GFlowNet-specific |
 
-**Note**: GFlowNet proceeds to Phase 2 regardless of GRPO-D baseline quality. The baseline informs comparison, not gating.
+**Publication Claims**:
+1. "GFlowNet is robust to reward hacking" (vs Vanilla)
+2. "GFlowNet achieves Nx more modes at equivalent quality" (vs Improved)
+
+**Note**: GFlowNet proceeds to Phase 2 regardless of GRPO-D baseline quality. The baselines inform comparison, not gating.
 
 ---
 
@@ -998,12 +1038,22 @@ GFlowNet success will be measured against these GRPO-D baselines:
 - [ ] Spread verified (std > 0.1)
 - [ ] Inference speed verified (<100ms)
 
-### GRPO-D Baseline Characterization (Phase 0b Peptides)
+### GRPO-D Baseline Characterization (Both Versions)
+
+**Phase 0a (Vanilla) Baseline**:
+- [ ] Existing metrics documented from `outputs/grpo_metrics.json`
+- [ ] Homopolymer samples preserved for comparison
+
+**Phase 0b (Improved) Baseline**:
 - [ ] ESMFold structure prediction complete
 - [ ] pLDDT scores computed for all 128 peptides
 - [ ] AA composition compared to APD3/UniProt
 - [ ] Motif frequency analyzed vs natural databases
 - [ ] Baseline metrics document generated (`outputs/grpod_baseline_metrics.json`)
+
+**Three-Way Comparison Table**:
+- [ ] All metrics populated for both GRPO-D versions
+- [ ] Ready for GFlowNet results in Phase 4
 
 ### Phase 2 Preparation
 - [ ] GRPO-D baseline documented for GFlowNet comparison
@@ -1176,14 +1226,14 @@ Phase 1 Complete
                │
                ▼
 ┌─────────────────────────────────────┐
-│   Phase 4: GFlowNet vs GRPO-D       │
-│   Comparison using baseline metrics │
+│   Phase 4: Three-Way Comparison     │
+│   GFlowNet vs Vanilla vs Improved   │
 └──────────────┬──────────────────────┘
                │
                ▼
        Publication:
-       "GFlowNet achieves Nx diversity
-        vs GRPO-D at equivalent quality"
+       - "GFlowNet robust to reward hacking (vs Vanilla)"
+       - "GFlowNet achieves Nx modes (vs Improved)"
 ```
 
 ---
