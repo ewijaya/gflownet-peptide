@@ -14,10 +14,11 @@ import wandb
 api = wandb.Api()
 runs = api.runs('gflownet-peptide')
 print(f'Found {len(runs)} runs in gflownet-peptide:\n')
-print(f'{\"ID\":<10} {\"Name\":<45} {\"State\":<10} {\"Created\"}')
-print('-' * 90)
+print('| ID       | Name                                         | State    | Created    |')
+print('|----------|----------------------------------------------|----------|------------|')
 for run in runs:
-    print(f'{run.id:<10} {run.name:<45} {run.state:<10} {run.created_at}')
+    date = run.created_at[:10]
+    print(f'| {run.id:<8} | {run.name:<44} | {run.state:<8} | {date} |')
 "
 ```
 
