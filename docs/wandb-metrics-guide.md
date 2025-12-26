@@ -142,6 +142,117 @@ Good:                          Bad:
 
 ---
 
+## Evaluation Metrics (`eval/`)
+
+Evaluation metrics are computed periodically (every `eval_every` steps) on a fresh batch of samples. They provide a cleaner signal than training metrics since they're not affected by gradient updates.
+
+### 7. `eval/mean_reward`
+
+**What it measures**: Average reward of evaluation samples (not used for training)
+
+**Why it matters**: More reliable quality indicator than `train/mean_reward` since it's computed on independent samples without exploration noise.
+
+**Ideal shape**: Same as `train/mean_reward` - should increase over time
+
+**Good**: Higher than `train/mean_reward` (policy is learning), trending upward
+**Bad**: Lower than training reward (overfitting to training dynamics), flat
+
+**Relationship to train/mean_reward**:
+- `eval/mean_reward` ≈ `train/mean_reward`: Healthy
+- `eval/mean_reward` >> `train/mean_reward`: Exploration is hurting training samples
+- `eval/mean_reward` << `train/mean_reward`: Possible issue with evaluation
+
+---
+
+### 8. `eval/max_reward`
+
+**What it measures**: Maximum reward among evaluation samples
+
+**Why it matters**: Shows the best sequence the model can generate - indicates ceiling performance.
+
+**Good**: Increasing, approaching theoretical maximum (1.0 for normalized rewards)
+**Bad**: Stuck at low value, decreasing
+
+---
+
+### 9. `eval/min_reward`
+
+**What it measures**: Minimum reward among evaluation samples
+
+**Why it matters**: Shows the worst sequence being generated - indicates floor performance.
+
+**Good**: Increasing over time (even bad samples are getting better)
+**Bad**: Very low or zero (model still generating junk sequences)
+
+---
+
+### 10. `eval/diversity`
+
+**What it measures**: Sequence diversity of evaluation samples (1 - mean pairwise sequence identity)
+
+**Why it matters**: This is the **key metric for GFlowNet success** - we want high diversity while maintaining quality.
+
+**Ideal shape**:
+- Should stay **high** (0.7-0.9) throughout training
+- Slight decrease OK as model focuses on high-reward regions
+
+**Good**: > 0.6, stable or slowly decreasing
+**Bad**: Collapsing toward 0 (mode collapse)
+
+```
+Good:                          Bad:
+│████████████████              │████████
+│                              │        ████
+│  ~0.8 stable                 │            ████
+│                              │                ████
+│                              │                    ██ → 0
+└────────────────►             └────────────────►
+```
+
+---
+
+### 11. `eval/mean_length` / `eval/min_length` / `eval/max_length`
+
+**What it measures**: Statistics on generated sequence lengths
+
+**Why it matters**: Ensures model generates sequences in the valid range (10-30 AA typically)
+
+**Good**:
+- `mean_length` between min_length and max_length config values
+- Reasonable spread (not all same length)
+
+**Bad**:
+- All sequences at max_length (model not learning to stop)
+- All sequences at min_length (model stopping too early)
+
+---
+
+## Eval vs Train Metrics Comparison
+
+| Aspect | `train/*` | `eval/*` |
+|--------|-----------|----------|
+| **Frequency** | Every step | Every `eval_every` steps |
+| **Samples** | Used for gradient update | Fresh samples, no gradients |
+| **Exploration** | May include exploration noise | Pure policy sampling |
+| **Purpose** | Monitor training dynamics | Measure true performance |
+| **Reliability** | Noisier | Cleaner signal |
+
+**Key insight**: If `train/mean_reward` looks good but `eval/mean_reward` is bad, the model may be overfitting to training dynamics rather than learning the reward landscape.
+
+---
+
+## Eval Metrics Quick Reference
+
+| Metric | Good Sign | Warning Sign | Target |
+|--------|-----------|--------------|--------|
+| `eval/mean_reward` | Increasing | Flat, decreasing | > 0.5 |
+| `eval/max_reward` | Approaching 1.0 | Stuck low | > 0.7 |
+| `eval/min_reward` | Increasing | Stuck at 0 | > 0.3 |
+| `eval/diversity` | High, stable | Collapsing | > 0.6 |
+| `eval/mean_length` | In valid range | At boundaries | 15-25 |
+
+---
+
 ## Quick Reference Table
 
 | Metric | Good Sign | Warning Sign | Target |
@@ -194,11 +305,20 @@ This indicates healthy training - continue monitoring.
 
 Recommended panels to create:
 
+### Top Priority (Pin These)
 1. **Loss Panel**: `train/loss` (log scale Y-axis)
 2. **Partition Function**: `train/log_z`
-3. **Quality Panel**: `train/mean_reward`, `train/max_reward`
-4. **Diversity Panel**: `train/unique_ratio`
-5. **Training Health**: `train/grad_norm`, `train/mean_log_pf`
+3. **Quality Panel**: `train/mean_reward`, `eval/mean_reward`
+4. **Diversity Panel**: `train/unique_ratio`, `eval/diversity`
+
+### Secondary (Training Health)
+5. **Gradient Health**: `train/grad_norm`
+6. **Policy Confidence**: `train/mean_log_pf`
+
+### Evaluation Details
+7. **Eval Quality**: `eval/mean_reward`, `eval/max_reward`, `eval/min_reward`
+8. **Eval Diversity**: `eval/diversity`
+9. **Sequence Lengths**: `eval/mean_length`, `eval/min_length`, `eval/max_length`
 
 ---
 
