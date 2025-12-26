@@ -18,7 +18,7 @@ This guide explains how to interpret the key metrics logged during GFlowNet trai
 
 | Rank | Metric | Why |
 |------|--------|-----|
-| 1 | `eval/diversity` | **The whole point of GFlowNet** - must stay high |
+| 1 | `eval/sequence_diversity` | **The whole point of GFlowNet** - must stay high |
 | 2 | `eval/mean_reward` | Quality check - should increase while diversity stays high |
 | 3 | `eval/max_reward` | Ceiling performance - shows best the model can do |
 
@@ -27,7 +27,7 @@ This guide explains how to interpret the key metrics logged during GFlowNet trai
 If you could only look at **one thing**, watch:
 
 ```
-eval/diversity  vs  eval/mean_reward
+eval/sequence_diversity  vs  eval/mean_reward
 ```
 
 **Success**: Both high (diversity > 0.6, reward > 0.5)
@@ -219,7 +219,7 @@ Evaluation metrics are computed periodically (every `eval_every` steps) on a fre
 
 ---
 
-### 10. `eval/diversity`
+### 10. `eval/sequence_diversity`
 
 **What it measures**: Sequence diversity of evaluation samples (1 - mean pairwise sequence identity)
 
@@ -281,7 +281,7 @@ Good:                          Bad:
 | `eval/mean_reward` | Increasing | Flat, decreasing | > 0.5 |
 | `eval/max_reward` | Approaching 1.0 | Stuck low | > 0.7 |
 | `eval/min_reward` | Increasing | Stuck at 0 | > 0.3 |
-| `eval/diversity` | High, stable | Collapsing | > 0.6 |
+| `eval/sequence_diversity` | High, stable | Collapsing | > 0.6 |
 | `eval/mean_length` | In valid range | At boundaries | 15-25 |
 
 ---
@@ -342,7 +342,7 @@ Recommended panels to create:
 1. **Loss Panel**: `train/loss` (log scale Y-axis)
 2. **Partition Function**: `train/log_z`
 3. **Quality Panel**: `train/mean_reward`, `eval/mean_reward`
-4. **Diversity Panel**: `train/unique_ratio`, `eval/diversity`
+4. **Diversity Panel**: `train/unique_ratio`, `eval/sequence_diversity`
 
 ### Secondary (Training Health)
 5. **Gradient Health**: `train/grad_norm`
@@ -350,7 +350,7 @@ Recommended panels to create:
 
 ### Evaluation Details
 7. **Eval Quality**: `eval/mean_reward`, `eval/max_reward`, `eval/min_reward`
-8. **Eval Diversity**: `eval/diversity`
+8. **Eval Diversity**: `eval/sequence_diversity`
 9. **Sequence Lengths**: `eval/mean_length`, `eval/min_length`, `eval/max_length`
 
 ---
