@@ -4,6 +4,39 @@ This guide explains how to interpret the key metrics logged during GFlowNet trai
 
 ---
 
+## Top 3 Metrics (TL;DR)
+
+### `train/` - Training Health
+
+| Rank | Metric | Why |
+|------|--------|-----|
+| 1 | `train/loss` | Core objective - if this doesn't decrease, nothing works |
+| 2 | `train/log_z` | Must stabilize - divergence means training failure |
+| 3 | `train/unique_ratio` | Early warning for mode collapse |
+
+### `eval/` - Model Quality
+
+| Rank | Metric | Why |
+|------|--------|-----|
+| 1 | `eval/diversity` | **The whole point of GFlowNet** - must stay high |
+| 2 | `eval/mean_reward` | Quality check - should increase while diversity stays high |
+| 3 | `eval/max_reward` | Ceiling performance - shows best the model can do |
+
+### The One Plot That Matters Most
+
+If you could only look at **one thing**, watch:
+
+```
+eval/diversity  vs  eval/mean_reward
+```
+
+**Success**: Both high (diversity > 0.6, reward > 0.5)
+**Failure**: High reward but low diversity (that's just GRPO, not GFlowNet)
+
+This is what distinguishes GFlowNet from reward-maximizing methods - it maintains diversity while improving quality.
+
+---
+
 ## Key Metrics to Monitor
 
 ### 1. `train/loss` (Trajectory Balance Loss)
