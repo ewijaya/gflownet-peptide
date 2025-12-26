@@ -21,10 +21,3 @@ for run in runs:
     print(f'| {run.id:<8} | {run.name:<44} | {run.state:<8} | {date} |')
 "
 ```
-
-## Step 2: Summary
-
-Provide a brief summary:
-- Total number of runs
-- How many are running vs finished vs failed
-- Any runs that might need attention (crashed, long-running, etc.)
