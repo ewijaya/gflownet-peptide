@@ -3,6 +3,7 @@
 **Generated from**: docs/gflownet-master-prd.md Section 5.3
 **Date**: 2025-12-26
 **Status**: Draft
+**Last Updated**: 2025-12-26 (sanity check verified)
 
 ---
 
@@ -24,6 +25,14 @@
   - All 123 tests passing
   - `ImprovedReward` functional (Phase 0b/1)
   - GPU available (A100 recommended, T4/V100 acceptable)
+
+- **Verified**:
+  - ✅ Sanity check (100 steps) completed successfully
+  - W&B run: https://wandb.ai/ewijaya/gflownet-peptide/runs/5ej9lfs9
+
+- **Bug Fixes Applied** (2025-12-26):
+  - Fixed `ESMBackbone` device handling for lazy loading (now properly moves to CUDA)
+  - Fixed `RewardHead` sigmoid transform (was returning raw values instead of sigmoid)
 
 ---
 
@@ -495,7 +504,7 @@ reward_model = ImprovedReward(
 
 ## 6. Deliverables Checklist
 
-- [ ] Sanity check training (100 steps) completed
+- [x] Sanity check training (100 steps) completed ✅
 - [ ] Baseline training (10K steps) completed
 - [ ] W&B dashboard configured with key metrics
 - [ ] Hyperparameter sweep completed (≥9 configurations)
@@ -590,14 +599,19 @@ Notebooks are used for analysis only.
 ### 9.3 Quick Start Commands
 
 ```bash
-# 1. Sanity check (2-5 min)
+# 1. Sanity check (2-5 min) - interactive
 python scripts/train_gflownet.py --n_steps 100 --wandb
 
-# 2. Baseline training (30-60 min)
+# 2. Baseline training (30-60 min) - interactive
 python scripts/train_gflownet.py --n_steps 10000 --wandb
 
-# 3. Full training (4-8 hours)
-python scripts/train_gflownet.py --n_steps 100000 --wandb
+# 3. Full training (4-8 hours) - use nohup + auto-shutdown
+nohup python scripts/train_gflownet.py \
+  --config configs/default.yaml \
+  --n_steps 100000 \
+  --output_dir checkpoints/gflownet/final/ \
+  --wandb \
+  > logs/train_gflownet_full.log 2>&1 && /home/ubuntu/bin/stopinstance &
 
 # 4. Generate samples
 python scripts/sample.py \
@@ -609,7 +623,45 @@ python scripts/sample.py \
 python scripts/evaluate.py --gflownet_samples samples/gflownet_final.csv
 ```
 
-### 9.4 W&B Configuration
+### 9.4 Long-Running Training Commands
+
+For training runs longer than 30 minutes, use `nohup` with auto-shutdown to save costs:
+
+```bash
+# Create logs directory
+mkdir -p logs
+
+# Baseline training (10K steps, ~30-60 min)
+nohup python scripts/train_gflownet.py \
+  --config configs/default.yaml \
+  --n_steps 10000 \
+  --output_dir checkpoints/gflownet/baseline/ \
+  --wandb \
+  > logs/train_baseline.log 2>&1 && /home/ubuntu/bin/stopinstance &
+
+# Full training (100K steps, ~4-8 hours)
+nohup python scripts/train_gflownet.py \
+  --config configs/default.yaml \
+  --n_steps 100000 \
+  --output_dir checkpoints/gflownet/final/ \
+  --wandb \
+  > logs/train_final.log 2>&1 && /home/ubuntu/bin/stopinstance &
+
+# Monitor progress (from another terminal or after reconnect)
+tail -f logs/train_final.log
+
+# Check if still running
+ps aux | grep train_gflownet
+```
+
+**Notes**:
+- `nohup` keeps the process running after SSH disconnect
+- `&& /home/ubuntu/bin/stopinstance` shuts down the instance after training completes
+- Logs are saved to `logs/` directory
+- W&B syncs progress in real-time, viewable at https://wandb.ai/ewijaya/gflownet-peptide
+- Checkpoints are saved periodically (every 5000 steps by default)
+
+### 9.5 W&B Configuration
 
 ```yaml
 # In configs/default.yaml
