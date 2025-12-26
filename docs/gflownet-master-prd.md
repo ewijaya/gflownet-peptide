@@ -274,31 +274,61 @@ For linear autoregressive generation, the backward policy is deterministic: the 
 | Reward Type | Description | Status |
 |-------------|-------------|--------|
 | ESM-2 Pseudo-likelihood | `R = (1/L) Σ log P(aa_i \| context)` | ❌ Broken - rewards repetitive sequences |
-| Improved (Entropy-gated) | `R = R_nat × G_ent × G_len` | ✅ Validated - penalizes repetition |
-| Composite (trained) | Stability + Binding + Naturalness | Phase 1 target |
+| Improved (Entropy-gated) | `R = R_nat × G_ent × G_len` | ✅ **Primary reward for benchmark** |
+| Composite (trained) | Stability + Binding + Naturalness | ✅ Available for ablation studies |
 
-**Warning:** ESM-2 pseudo-likelihood is vulnerable to reward hacking. Sequences like `QQQQQQQQQQ` receive high scores (~0.93) because each position is trivially predictable. Use the improved reward or trained composite reward instead.
+**Warning:** ESM-2 pseudo-likelihood is vulnerable to reward hacking. Sequences like `QQQQQQQQQQ` receive high scores (~0.93) because each position is trivially predictable.
+
+### Reward Decision for Publication (Updated 2025-12-26)
+
+**Main Benchmark: Use `ImprovedReward` for both GFlowNet and GRPO-D**
+
+| Comparison | Reward Function | Rationale |
+|------------|-----------------|-----------|
+| GFlowNet vs GRPO-D Improved | Both use `ImprovedReward` | Fair comparison - same reward |
+| Ablation study | `CompositeReward` | Shows results hold with richer reward |
+
+**Why `ImprovedReward` (not `CompositeReward`) for main benchmark:**
+1. **Fair comparison**: Any diversity improvement is due to GFlowNet's sampling algorithm, not a different reward function
+2. **Simpler story**: One reward, two algorithms - isolates the algorithm contribution
+3. **Reviewer-friendly**: Avoids questions about whether improvements come from reward engineering
+
+**`CompositeReward` (with trained stability predictor) is available for:**
+- Ablation studies showing GFlowNet works with data-driven rewards
+- Future work extending to multi-objective optimization
+- Post-publication extensions with binding predictor
 
 See `docs/reward_formulation.md` for full mathematical specification of all reward types.
 
-**Composite Reward:**
+**ImprovedReward (Primary - for benchmark):**
 
 ```python
-class CompositeReward(nn.Module):
-    def __init__(self):
-        self.stability = StabilityPredictor()   # FLIP-trained
-        self.binding = BindingPredictor()       # Propedia-trained
-        self.lm = PeptideLM()                   # ProtGPT2 or ESM
-        self.weights = {'stability': 1.0, 'binding': 1.0, 'naturalness': 0.5}
+class ImprovedReward:
+    """Used for main GFlowNet vs GRPO-D comparison."""
+    def __call__(self, sequence):
+        # Entropy gate: penalizes low-complexity sequences
+        entropy_gate = sigmoid((entropy(seq) - threshold) * sharpness)
+        # Length gate: penalizes too-short sequences
+        length_gate = sigmoid((len(seq) - min_length) * length_sharpness)
+        # Naturalness: ESM-2 embedding similarity to natural proteins
+        naturalness = embedding_score(sequence)
 
-    def forward(self, sequence):
-        s = self.stability(sequence)        # [0, ∞)
-        b = self.binding(sequence)          # [0, ∞)
-        n = torch.exp(-self.lm.perplexity(sequence) / 10)  # (0, 1]
+        return entropy_gate * length_gate * naturalness
+```
 
-        return (s ** self.weights['stability'] *
-                b ** self.weights['binding'] *
-                n ** self.weights['naturalness'])
+**CompositeReward (Secondary - for ablation):**
+
+```python
+class CompositeReward:
+    """Used for ablation studies with trained stability predictor."""
+    def __call__(self, sequence):
+        # Reuses ImprovedReward components
+        entropy_gate = self.improved_reward.entropy_gate(sequence)
+        naturalness = self.improved_reward.naturalness(sequence)
+        # Adds trained stability prediction (R²=0.65 on FLIP)
+        stability = self.stability_predictor(sequence)
+
+        return entropy_gate * stability * naturalness
 ```
 
 #### 4.2.4 Partition Function (Z)
@@ -687,18 +717,20 @@ gflownet_peptide/
 **Duration:** 2 weeks
 **Objective:** Rigorously compare GFlowNet to GRPO on identical task
 
+**Key Decision:** Both GFlowNet and GRPO-D use `ImprovedReward` for fair comparison.
+
 #### 5.4.1 Activities
 
 | ID | Activity | Output |
 |----|----------|--------|
-| 4.1 | Train GRPO baseline on same reward model | GRPO model |
-| 4.2 | Generate 1000 peptides from GFlowNet | GFlowNet samples |
-| 4.3 | Generate 1000 peptides from GRPO | GRPO samples |
-| 4.4 | Compute all metrics (see §7) for both | Metrics table |
-| 4.5 | Proportionality check: P(x) vs R(x) | Calibration plot |
-| 4.6 | Cluster analysis: mode coverage | UMAP + clusters |
-| 4.7 | Statistical significance tests | p-values |
-| 4.8 | Ablation studies (reward components, temperature) | Ablation table |
+| 4.1 | Use existing GRPO-D Improved baseline (Phase 0b) | GRPO-D samples (128 peptides) |
+| 4.2 | Generate 1000 peptides from GFlowNet using `ImprovedReward` | GFlowNet samples |
+| 4.3 | Compute all metrics (see §7) for both | Metrics table |
+| 4.4 | Proportionality check: P(x) vs R(x) | Calibration plot |
+| 4.5 | Cluster analysis: mode coverage | UMAP + clusters |
+| 4.6 | Statistical significance tests | p-values |
+| 4.7 | **Ablation:** GFlowNet with `CompositeReward` | Shows results hold with trained reward |
+| 4.8 | Temperature sweep (β ∈ [0.5, 2.0]) | Ablation table |
 
 #### 5.4.2 Experiment Design
 

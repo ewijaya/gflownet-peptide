@@ -44,18 +44,21 @@
 
 ## 1. Executive Summary
 
-- **Objective**: Train a public reward model on FLIP/Propedia datasets AND establish comprehensive baseline metrics for GRPO-D generated peptides. This reward model will be used for both GRPO-D and GFlowNet, enabling fair comparison. The biological validation establishes the benchmark that GFlowNet must improve upon.
+- **Objective**: Establish comprehensive baseline metrics for GRPO-D generated peptides AND train optional data-driven reward components for ablation studies. The `ImprovedReward` from Phase 0b will be used for the main GFlowNet vs GRPO-D comparison.
 
 - **Duration**: 2 weeks
 
+- **Reward Decision (Updated 2025-12-26)**:
+  - **Main benchmark**: Use `ImprovedReward` for both GFlowNet and GRPO-D (fair comparison)
+  - **Ablation study**: Use `CompositeReward` (with trained stability predictor) to show results hold with richer rewards
+  - **Rationale**: Same reward function ensures any diversity improvement is due to GFlowNet's sampling algorithm, not reward engineering
+
 - **Key Deliverables**:
-  - ESM-2 based stability predictor trained on FLIP dataset
-  - ESM-2 based binding predictor trained on Propedia dataset
-  - Composite reward function combining stability, binding, and naturalness
-  - Validation metrics showing R² ≥ 0.5 on held-out test sets
-  - Integration with existing `ImprovedReward` entropy gate from Phase 0b
-  - **GRPO-D baseline report** for Phase 0b peptides (ESMFold pLDDT, AA composition, structural metrics)
-  - **Baseline metrics document** defining targets for GFlowNet to beat
+  - **Primary**: GRPO-D baseline metrics (ESMFold pLDDT, AA composition, structural quality)
+  - **Primary**: Baseline metrics document defining targets for GFlowNet to beat
+  - **Secondary (for ablation)**: ESM-2 based stability predictor trained on FLIP dataset (R²=0.65)
+  - **Secondary (for ablation)**: Composite reward function combining stability + entropy gate + naturalness
+  - **Deferred**: Binding predictor (Propedia lacks affinity data)
 
 - **Prerequisites**:
   - Phase 0 completed (GRPO-D baseline established)
