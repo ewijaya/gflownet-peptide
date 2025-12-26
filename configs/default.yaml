@@ -1,17 +1,23 @@
 # GFlowNet Peptide Generation - Default Configuration
+# Phase 2: GFlowNet Core Implementation
+#
+# References:
+#   - Bengio et al. (2021): Flow Network based Generative Models
+#   - Malkin et al. (2022): Trajectory Balance: Improved Credit Assignment in GFlowNets
+#   - Jain et al. (2022): Biological Sequence Design with GFlowNets
 
 # =============================================================================
 # Forward Policy (P_F)
 # =============================================================================
 policy:
   # Transformer architecture
-  vocab_size: 22  # 20 amino acids + START + STOP
+  vocab_size: 23  # 20 amino acids + START (20) + STOP (21) + PAD (22)
   d_model: 256
   n_layers: 4
   n_heads: 8
-  dim_feedforward: 512
+  dim_feedforward: 1024  # 4 * d_model per PRD
   dropout: 0.1
-  max_length: 40
+  max_length: 64
 
   # Positional encoding
   pos_encoding: "sinusoidal"  # or "learned"
@@ -64,6 +70,9 @@ training:
   lr_scheduler: "cosine"
   warmup_steps: 1000
 
+  # Malkin 2022: log_Z should have higher LR (~10x policy LR)
+  log_z_lr_multiplier: 10.0
+
   # Batch and steps
   batch_size: 64
   n_steps: 100000
@@ -73,11 +82,12 @@ training:
   # Loss function
   loss_type: "trajectory_balance"  # "trajectory_balance" or "sub_trajectory_balance"
 
-  # Checkpointing
+  # Checkpointing (policy: overwrite latest, keep final)
   save_every: 5000
   eval_every: 1000
+  log_every: 100
 
-  # Learnable log Z
+  # Learnable log Z (partition function)
   init_log_z: 0.0
 
   # Reproducibility
@@ -115,6 +125,10 @@ generation:
   top_k: 0  # 0 = disabled
   top_p: 1.0  # 1.0 = disabled
 
+  # Exploration (Bengio 2021, Eq. 10)
+  # π_explore = (1 - δ) * P_F + δ * Uniform
+  exploration_eps: 0.001  # δ: uniform mixing coefficient
+
   # Batch generation
   batch_size: 128
 
@@ -143,7 +157,7 @@ evaluation:
 logging:
   use_wandb: true
   wandb_project: "gflownet-peptide"
-  wandb_entity: null  # Your wandb username
+  wandb_entity: "ewijaya"  # W&B username
 
   log_every: 100
 

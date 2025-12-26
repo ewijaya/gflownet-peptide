@@ -2,7 +2,13 @@
 Loss Functions for GFlowNet Training.
 
 Implements Trajectory Balance (TB) and Sub-Trajectory Balance (SubTB) losses.
+
+References:
+    - Bengio et al. (2021): Flow Network based Generative Models
+    - Malkin et al. (2022): Trajectory Balance: Improved Credit Assignment in GFlowNets
 """
+
+from typing import Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
@@ -21,24 +27,31 @@ class TrajectoryBalanceLoss(nn.Module):
     - P_F is the forward policy
     - R is the reward
     - P_B is the backward policy
+
+    For uniform P_B (linear autoregressive generation), sum(log P_B) = 0,
+    simplifying to: L_TB = (log Z + sum(log P_F) - log R)^2
     """
 
-    def __init__(self, init_log_z: float = 0.0):
+    def __init__(self, init_log_z: float = 0.0, epsilon: float = 1e-8):
         """
         Args:
             init_log_z: Initial value for log partition function
+            epsilon: Small constant for numerical stability (unused, rewards
+                     should already be in log space)
         """
         super().__init__()
 
         # Learnable log partition function
         self.log_z = nn.Parameter(torch.tensor(init_log_z))
+        self.epsilon = epsilon
 
     def forward(
         self,
         log_pf_sum: torch.Tensor,
         log_pb_sum: torch.Tensor,
         log_rewards: torch.Tensor,
-    ) -> torch.Tensor:
+        return_info: bool = False,
+    ) -> Union[torch.Tensor, Tuple[torch.Tensor, dict]]:
         """
         Compute TB loss for a batch of trajectories.
 
@@ -46,15 +59,32 @@ class TrajectoryBalanceLoss(nn.Module):
             log_pf_sum: Sum of log forward probs [batch]
             log_pb_sum: Sum of log backward probs [batch]
             log_rewards: Log rewards for terminal states [batch]
+            return_info: If True, also return info dict with metrics
 
         Returns:
             loss: Scalar TB loss
+            info: (optional) Dictionary with detailed metrics
         """
         # TB condition: log Z + sum(log P_F) = log R + sum(log P_B)
         # Loss: (log Z + sum(log P_F) - log R - sum(log P_B))^2
 
         residual = self.log_z + log_pf_sum - log_rewards - log_pb_sum
         loss = (residual ** 2).mean()
+
+        if return_info:
+            with torch.no_grad():
+                info = {
+                    'loss': loss.item(),
+                    'log_z': self.log_z.item(),
+                    'mean_log_pf': log_pf_sum.mean().item(),
+                    'mean_log_pb': log_pb_sum.mean().item(),
+                    'mean_log_reward': log_rewards.mean().item(),
+                    'mean_reward': torch.exp(log_rewards).mean().item(),
+                    'max_reward': torch.exp(log_rewards).max().item(),
+                    'residual_mean': residual.mean().item(),
+                    'residual_std': residual.std().item(),
+                }
+            return loss, info
 
         return loss
 
@@ -80,23 +110,29 @@ class SubTrajectoryBalanceLoss(nn.Module):
         self,
         init_log_z: float = 0.0,
         lambda_sub: float = 0.9,
+        epsilon: float = 1e-8,
     ):
         """
         Args:
             init_log_z: Initial value for log partition function
             lambda_sub: Weight decay for sub-trajectory contributions
+            epsilon: Small constant for numerical stability
         """
         super().__init__()
 
         self.log_z = nn.Parameter(torch.tensor(init_log_z))
         self.lambda_sub = lambda_sub
+        self.epsilon = epsilon
+        # State flow estimator for intermediate states (optional)
+        self.state_flow = None
 
     def forward(
         self,
         log_pf_per_step: torch.Tensor,
         log_pb_per_step: torch.Tensor,
         log_rewards: torch.Tensor,
-    ) -> torch.Tensor:
+        return_info: bool = False,
+    ) -> Union[torch.Tensor, Tuple[torch.Tensor, dict]]:
         """
         Compute SubTB loss.
 
@@ -104,9 +140,11 @@ class SubTrajectoryBalanceLoss(nn.Module):
             log_pf_per_step: Log forward probs at each step [batch, seq_len]
             log_pb_per_step: Log backward probs at each step [batch, seq_len]
             log_rewards: Log rewards for terminal states [batch]
+            return_info: If True, also return info dict with metrics
 
         Returns:
             loss: Scalar SubTB loss
+            info: (optional) Dictionary with detailed metrics
         """
         batch_size, seq_len = log_pf_per_step.shape
 
@@ -124,7 +162,28 @@ class SubTrajectoryBalanceLoss(nn.Module):
             residual = self.log_z + log_pf_from_t - log_rewards - log_pb_from_t
             total_loss = total_loss + weight * (residual ** 2).mean()
 
-        return total_loss / seq_len
+        loss = total_loss / seq_len
+
+        if return_info:
+            with torch.no_grad():
+                # Compute full trajectory residual for reporting
+                log_pf_sum = log_pf_per_step.sum(dim=1)
+                log_pb_sum = log_pb_per_step.sum(dim=1)
+                full_residual = self.log_z + log_pf_sum - log_rewards - log_pb_sum
+
+                info = {
+                    'loss': loss.item(),
+                    'log_z': self.log_z.item(),
+                    'mean_log_pf': log_pf_sum.mean().item(),
+                    'mean_log_pb': log_pb_sum.mean().item(),
+                    'mean_log_reward': log_rewards.mean().item(),
+                    'mean_reward': torch.exp(log_rewards).mean().item(),
+                    'residual_mean': full_residual.mean().item(),
+                    'residual_std': full_residual.std().item(),
+                }
+            return loss, info
+
+        return loss
 
     def get_log_z(self) -> float:
         """Return current estimate of log partition function."""

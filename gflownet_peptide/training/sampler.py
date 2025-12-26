@@ -40,6 +40,9 @@ class TrajectorySampler:
 
     A trajectory is a sequence of states (partial peptides) from the
     initial state [START] to a terminal state (complete peptide).
+
+    Supports exploration via uniform mixing (Bengio 2021, Eq. 10):
+        π_explore = (1 - ε) * P_F + ε * Uniform
     """
 
     def __init__(
@@ -48,6 +51,7 @@ class TrajectorySampler:
         backward_policy: nn.Module,
         min_length: int = 10,
         max_length: int = 30,
+        exploration_eps: float = 0.0,
     ):
         """
         Args:
@@ -55,11 +59,14 @@ class TrajectorySampler:
             backward_policy: Backward policy P_B(s|s')
             min_length: Minimum peptide length
             max_length: Maximum peptide length
+            exploration_eps: ε for uniform mixing (Bengio 2021, Eq. 10).
+                             π = (1-ε)*P_F + ε*Uniform. Default 0 (no mixing).
         """
         self.forward_policy = forward_policy
         self.backward_policy = backward_policy
         self.min_length = min_length
         self.max_length = max_length
+        self.exploration_eps = exploration_eps
 
         # Token indices (must match forward policy)
         self.start_idx = forward_policy.start_idx
@@ -116,9 +123,13 @@ class TrajectorySampler:
             if step < self.min_length:
                 logits[:, 20] = float("-inf")  # Mask STOP token
 
-            # Sample actions
+            # Sample actions with optional exploration mixing (Bengio 2021, Eq. 10)
             probs = torch.softmax(logits, dim=-1)
+            if self.exploration_eps > 0:
+                uniform = torch.ones_like(probs) / probs.size(-1)
+                probs = (1 - self.exploration_eps) * probs + self.exploration_eps * uniform
             actions = torch.multinomial(probs, num_samples=1).squeeze(-1)
+            # Use original logits for log prob (importance sampling: log P_F, not log π_explore)
             log_probs = torch.log_softmax(logits, dim=-1)
             log_pf = log_probs.gather(-1, actions.unsqueeze(-1)).squeeze(-1)
 
@@ -222,9 +233,12 @@ class TrajectorySampler:
             if step < self.min_length:
                 logits[:, 20] = float("-inf")
 
-            # Sample action
+            # Sample action with optional exploration mixing
             with torch.no_grad():
                 probs = torch.softmax(logits, dim=-1)
+                if self.exploration_eps > 0:
+                    uniform = torch.ones_like(probs) / probs.size(-1)
+                    probs = (1 - self.exploration_eps) * probs + self.exploration_eps * uniform
                 actions = torch.multinomial(probs, num_samples=1).squeeze(-1)
 
             # Compute log prob WITH gradients
