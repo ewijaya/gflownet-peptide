@@ -3,7 +3,7 @@
 **Generated from**: docs/gflownet-master-prd.md Section 5.3
 **Date**: 2025-12-26
 **Status**: Draft
-**Last Updated**: 2025-12-26 (sanity check verified)
+**Last Updated**: 2025-12-26 (added reward type flag A/B/C comparison)
 
 ---
 
@@ -470,20 +470,39 @@ export CUDA_VISIBLE_DEVICES=0
 
 ### 4.4 Reward Model Selection
 
-**For Phase 3 Training**:
+**The `--reward_type` Flag**:
 
-Use `ImprovedReward` (not CompositeReward) as specified in the Master PRD:
+The training script supports multiple reward functions via the `--reward_type` flag:
 
-```python
-from gflownet_peptide.rewards.improved_reward import ImprovedReward
+| Option | `--reward_type` | Description | Use Case |
+|--------|-----------------|-------------|----------|
+| **C** | `improved` | Entropy gate + naturalness | Fast validation, main benchmark |
+| **B** | `esm2_pll` | ESM-2 pseudo-likelihood | Alternative naturalness proxy |
+| **A** | `trained` | Trained stability predictor | Publication-ready, data-driven |
+| Legacy | `composite` | Untrained MLP heads | ❌ Not recommended |
 
-reward_model = ImprovedReward(
-    esm_model="esm2_t12_35M_UR50D",  # Faster model for training
-    entropy_threshold=2.5,
-    min_length=10,
-    device="cuda"
-)
+**Example Usage**:
+
+```bash
+# Option C: Improved Reward (default for benchmarking)
+python scripts/train_gflownet.py --reward_type improved --wandb
+
+# Option B: ESM-2 Pseudo-likelihood
+python scripts/train_gflownet.py --reward_type esm2_pll --wandb
+
+# Option A: Trained Stability (requires checkpoint)
+python scripts/train_gflownet.py \
+  --reward_type trained \
+  --reward_checkpoint checkpoints/reward_models/stability_predictor_best.pt \
+  --wandb
 ```
+
+**Recommended for Phase 3**:
+
+Use `--reward_type improved` (Option C) for the main benchmark because:
+1. **Fair comparison**: Same reward for GFlowNet and GRPO-D isolates algorithm contribution
+2. **Fast validation**: Uses small ESM-2 model (esm2_t6_8M_UR50D)
+3. **Reviewer-friendly**: Simple story - one reward, two algorithms
 
 **Rationale**: Using the same reward for both GFlowNet and GRPO-D ensures fair comparison in Phase 4.
 
@@ -664,7 +683,75 @@ ps aux | grep train_gflownet
 - W&B syncs progress in real-time, viewable at https://wandb.ai/ewijaya/gflownet-peptide
 - Checkpoints are saved periodically (every 5000 steps by default)
 
-### 9.5 W&B Configuration
+### 9.5 Reward Comparison Runs (A, B, C)
+
+Run all three reward options sequentially to compare their effectiveness:
+
+```bash
+nohup bash -c '
+echo "=== Starting reward comparison runs ===" && \
+echo "Start time: $(date)" && \
+
+# Option C: Improved Reward (entropy gate + naturalness)
+echo "=== Run 1/3: Improved Reward ===" && \
+python scripts/train_gflownet.py \
+    --reward_type improved \
+    --esm_model esm2_t6_8M_UR50D \
+    --n_steps 10000 \
+    --output_dir checkpoints/gflownet/reward-comparison/improved/ \
+    --run_name gflownet-reward-C-improved-10k \
+    --wandb \
+    --seed 42 && \
+
+# Option B: ESM-2 Pseudo-likelihood
+echo "=== Run 2/3: ESM2 Pseudo-likelihood ===" && \
+python scripts/train_gflownet.py \
+    --reward_type esm2_pll \
+    --esm_model esm2_t6_8M_UR50D \
+    --n_steps 10000 \
+    --output_dir checkpoints/gflownet/reward-comparison/esm2pll/ \
+    --run_name gflownet-reward-B-esm2pll-10k \
+    --wandb \
+    --seed 42 && \
+
+# Option A: Trained Stability Reward
+echo "=== Run 3/3: Trained Stability ===" && \
+python scripts/train_gflownet.py \
+    --reward_type trained \
+    --reward_checkpoint checkpoints/reward_models/stability_predictor_best.pt \
+    --esm_model esm2_t6_8M_UR50D \
+    --n_steps 10000 \
+    --output_dir checkpoints/gflownet/reward-comparison/trained/ \
+    --run_name gflownet-reward-A-trained-10k \
+    --wandb \
+    --seed 42 && \
+
+echo "=== All runs completed ===" && \
+echo "End time: $(date)" && \
+/home/ubuntu/bin/stopinstance
+' > logs/reward-comparison-$(date +%Y%m%d_%H%M%S).log 2>&1 &
+```
+
+**Expected W&B Runs**:
+
+| Run Name | Reward Type | Purpose |
+|----------|-------------|---------|
+| `gflownet-reward-C-improved-10k` | Improved | Fast validation, main benchmark |
+| `gflownet-reward-B-esm2pll-10k` | ESM2 PLL | Alternative naturalness |
+| `gflownet-reward-A-trained-10k` | Trained | Data-driven, publication-ready |
+
+**Expected Runtime**: ~9 hours total (~3 hours per run)
+
+**Comparison Metrics**:
+
+| Metric | What it shows |
+|--------|---------------|
+| `train/mean_reward` | Model learning to find high-reward sequences |
+| `train/loss` | TB loss convergence |
+| `eval/sequence_diversity` | GFlowNet maintaining diversity |
+| `train/log_z` | Partition function stability |
+
+### 9.6 W&B Configuration
 
 ```yaml
 # In configs/default.yaml

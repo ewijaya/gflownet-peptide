@@ -23,11 +23,15 @@ $$P(x) \propto R(x)^\beta$$
 
 where $\beta$ is the inverse temperature controlling the sharpness of the distribution.
 
-Our system implements three reward formulations:
+Our system implements three reward formulations, selectable via `--reward_type` in `train_gflownet.py`:
 
-1. **ESM-2 Pseudo-Likelihood Reward**: Measures sequence naturalness using a pretrained protein language model (original, prone to reward hacking)
-2. **Improved Reward with Entropy Gate**: Addresses reward hacking by combining embedding naturalness with entropy-based filtering (Phase 0b)
-3. **Composite Multi-Objective Reward**: Combines stability, binding affinity, and naturalness predictions (Phase 1+)
+| Option | `--reward_type` | Description | Use Case |
+|--------|-----------------|-------------|----------|
+| **C** | `improved` | Entropy gate + length gate + ESM naturalness | Fast validation, anti-hacking |
+| **B** | `esm2_pll` | ESM-2 pseudo-likelihood scoring | Biologically grounded baseline |
+| **A** | `trained` | Trained stability predictor + entropy gate | Publication-ready, uses real data |
+
+Additionally, `--reward_type composite` provides the original (untrained) CompositeReward for backward compatibility.
 
 All formulations leverage ESM-2 (Evolutionary Scale Modeling) as the backbone encoder for extracting sequence representations.
 
@@ -713,12 +717,14 @@ Bengio, E., et al. (2021). Flow network based generative models for non-iterativ
 |-----------|-------------|-----------|
 | ESM-2 Pseudo-Likelihood | `gflownet_peptide/rewards/esm2_reward.py` | 55-278 |
 | Improved Reward | `gflownet_peptide/rewards/improved_reward.py` | 1-250 |
+| Trained Composite Reward | `gflownet_peptide/rewards/composite_reward.py` | 1-257 |
+| Stability Predictor | `gflownet_peptide/rewards/stability_predictor.py` | - |
 | ESM Backbone | `gflownet_peptide/models/reward_model.py` | 18-101 |
 | Reward Head (MLP) | `gflownet_peptide/models/reward_model.py` | 104-162 |
 | Stability Reward | `gflownet_peptide/models/reward_model.py` | 165-202 |
 | Binding Reward | `gflownet_peptide/models/reward_model.py` | 205-235 |
 | Naturalness Reward | `gflownet_peptide/models/reward_model.py` | 238-285 |
-| Composite Reward | `gflownet_peptide/models/reward_model.py` | 288-410 |
+| Composite Reward (untrained) | `gflownet_peptide/models/reward_model.py` | 288-410 |
 | AA Frequency Diversity | `gflownet_peptide/training/diversity.py` | 19-61 |
 | Sequence Dissimilarity | `gflownet_peptide/training/diversity.py` | 64-117 |
 | Combined Diversity | `gflownet_peptide/training/diversity.py` | 120-176 |
@@ -728,4 +734,36 @@ Bengio, E., et al. (2021). Flow network based generative models for non-iterativ
 
 ---
 
-*Document generated for scientific publication. Last updated: 2025-12-24*
+## Appendix B: Reward Type Selection in Training
+
+The `--reward_type` flag in `scripts/train_gflownet.py` selects the reward function:
+
+```bash
+# Option C: Improved Reward (fastest, anti-hacking)
+python scripts/train_gflownet.py --reward_type improved --esm_model esm2_t6_8M_UR50D
+
+# Option B: ESM-2 Pseudo-likelihood (biologically grounded)
+python scripts/train_gflownet.py --reward_type esm2_pll --esm_model esm2_t6_8M_UR50D
+
+# Option A: Trained Stability (requires checkpoint)
+python scripts/train_gflownet.py --reward_type trained \
+    --reward_checkpoint checkpoints/reward_models/stability_predictor_best.pt
+
+# Legacy: Untrained composite (not recommended - flat rewards)
+python scripts/train_gflownet.py --reward_type composite
+```
+
+### Reward Comparison Summary
+
+| Reward Type | Log Reward Range | Discriminative Power | Training Signal |
+|-------------|------------------|---------------------|-----------------|
+| `composite` (untrained) | ~0.03 | Very Low | Insufficient |
+| `improved` | ~2-3 | Good | Sufficient |
+| `esm2_pll` | ~3-5 | Good | Sufficient |
+| `trained` | ~2-4 | Good | Sufficient |
+
+The baseline training with `composite` (untrained) produced flat rewards (~0.445) because the MLP heads were never trained. Options A, B, and C provide discriminative rewards that enable GFlowNet learning.
+
+---
+
+*Document generated for scientific publication. Last updated: 2025-12-26*

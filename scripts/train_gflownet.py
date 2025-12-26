@@ -71,6 +71,21 @@ def parse_args():
         default=42,
         help="Random seed",
     )
+    parser.add_argument(
+        "--reward_type",
+        type=str,
+        default="composite",
+        choices=["composite", "esm2_pll", "improved", "trained"],
+        help="Reward function type: composite (default, untrained MLP heads), "
+             "esm2_pll (ESM pseudo-likelihood), improved (entropy gate + naturalness), "
+             "trained (trained stability + entropy gate, requires --reward_checkpoint)",
+    )
+    parser.add_argument(
+        "--esm_model",
+        type=str,
+        default=None,
+        help="ESM-2 model for reward (default: from config or esm2_t6_8M_UR50D)",
+    )
 
     return parser.parse_args()
 
@@ -80,6 +95,76 @@ def load_config(config_path: str) -> dict:
     with open(config_path) as f:
         config = yaml.safe_load(f)
     return config
+
+
+def create_reward_model(args, reward_config, device):
+    """Create reward model based on --reward_type flag.
+
+    Args:
+        args: Parsed command line arguments
+        reward_config: Reward configuration from YAML
+        device: torch device
+
+    Returns:
+        Reward model (nn.Module or callable)
+    """
+    esm_model = args.esm_model or reward_config.get("esm_model", "esm2_t6_8M_UR50D")
+
+    if args.reward_type == "composite":
+        # Original behavior - uses models/reward_model.py (untrained MLP heads)
+        from gflownet_peptide.models.reward_model import CompositeReward
+        if args.reward_checkpoint:
+            logger.info(f"Loading composite reward from {args.reward_checkpoint}")
+            return CompositeReward.from_pretrained(
+                args.reward_checkpoint,
+                esm_model=esm_model,
+            )
+        logger.info(f"Creating composite reward with untrained heads ({esm_model})")
+        return CompositeReward(
+            esm_model=esm_model,
+            stability_weight=reward_config.get("weights", {}).get("stability", 1.0),
+            binding_weight=reward_config.get("weights", {}).get("binding", 1.0),
+            naturalness_weight=reward_config.get("weights", {}).get("naturalness", 0.5),
+            freeze_esm=True,
+            share_backbone=True,
+        )
+
+    elif args.reward_type == "improved":
+        from gflownet_peptide.rewards.improved_reward import ImprovedReward
+        logger.info(f"Using improved reward (entropy gate + naturalness) with {esm_model}")
+        return ImprovedReward(
+            model_name=esm_model,
+            device=str(device),
+            entropy_threshold=0.5,
+            entropy_sharpness=10.0,
+            min_length=10,
+            normalize=True,
+        )
+
+    elif args.reward_type == "esm2_pll":
+        from gflownet_peptide.rewards.esm2_reward import ESM2Reward
+        logger.info(f"Using ESM-2 pseudo-likelihood reward with {esm_model}")
+        return ESM2Reward(
+            model_name=esm_model,
+            device=str(device),
+            normalize=True,
+            temperature=reward_config.get("temperature", 1.0),
+        )
+
+    elif args.reward_type == "trained":
+        from gflownet_peptide.rewards.composite_reward import CompositeReward
+        if not args.reward_checkpoint:
+            raise ValueError("--reward_type trained requires --reward_checkpoint")
+        logger.info(f"Using trained stability reward from {args.reward_checkpoint}")
+        return CompositeReward(
+            stability_checkpoint=args.reward_checkpoint,
+            weights={'stability': 1.0, 'naturalness': 0.5},
+            esm_model=esm_model,
+            device=str(device),
+        )
+
+    else:
+        raise ValueError(f"Unknown reward type: {args.reward_type}")
 
 
 def main():
@@ -104,7 +189,6 @@ def main():
     # Import after parsing args to avoid slow imports
     from gflownet_peptide.models.forward_policy import ForwardPolicy
     from gflownet_peptide.models.backward_policy import BackwardPolicy
-    from gflownet_peptide.models.reward_model import CompositeReward
     from gflownet_peptide.training.trainer import GFlowNetTrainer
 
     # Create forward policy
@@ -123,25 +207,9 @@ def main():
     # Create backward policy (uniform for linear generation)
     backward_policy = BackwardPolicy(use_uniform=True)
 
-    # Load or create reward model
+    # Create reward model based on --reward_type
     reward_config = config.get("reward", {})
-
-    if args.reward_checkpoint:
-        logger.info(f"Loading reward model from {args.reward_checkpoint}")
-        reward_model = CompositeReward.from_pretrained(
-            args.reward_checkpoint,
-            esm_model=reward_config.get("esm_model", "esm2_t12_35M_UR50D"),
-        )
-    else:
-        logger.info("Creating new composite reward model")
-        reward_model = CompositeReward(
-            esm_model=reward_config.get("esm_model", "esm2_t12_35M_UR50D"),
-            stability_weight=reward_config.get("weights", {}).get("stability", 1.0),
-            binding_weight=reward_config.get("weights", {}).get("binding", 1.0),
-            naturalness_weight=reward_config.get("weights", {}).get("naturalness", 0.5),
-            freeze_esm=True,
-            share_backbone=True,
-        )
+    reward_model = create_reward_model(args, reward_config, device)
 
     # Create trainer
     training_config = config.get("training", {})

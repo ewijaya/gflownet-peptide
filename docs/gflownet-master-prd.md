@@ -271,13 +271,14 @@ For linear autoregressive generation, the backward policy is deterministic: the 
 
 **Reward Options (Updated based on Phase 0 findings):**
 
-| Reward Type | Description | Status |
-|-------------|-------------|--------|
-| ESM-2 Pseudo-likelihood | `R = (1/L) Σ log P(aa_i \| context)` | ❌ Broken - rewards repetitive sequences |
-| Improved (Entropy-gated) | `R = R_nat × G_ent × G_len` | ✅ **Primary reward for benchmark** |
-| Composite (trained) | Stability + Binding + Naturalness | ✅ Available for ablation studies |
+| Reward Type | `--reward_type` | Description | Status |
+|-------------|-----------------|-------------|--------|
+| ESM-2 Pseudo-likelihood | `esm2_pll` | `R = (1/L) Σ log P(aa_i \| context)` | ⚠️ Use with caution - can reward repetitive sequences |
+| Improved (Entropy-gated) | `improved` | `R = R_nat × G_ent × G_len` | ✅ **Option C - Fast validation** |
+| Trained Composite | `trained` | Stability predictor + Entropy gate | ✅ **Option A - Publication-ready** |
+| Untrained Composite | `composite` | Random MLP heads (legacy) | ❌ Not recommended - flat rewards |
 
-**Warning:** ESM-2 pseudo-likelihood is vulnerable to reward hacking. Sequences like `QQQQQQQQQQ` receive high scores (~0.93) because each position is trivially predictable.
+**Warning:** The original `composite` reward (untrained MLP heads) produces near-constant rewards (~0.48-0.52), insufficient for GFlowNet learning. Use `improved`, `esm2_pll`, or `trained` instead.
 
 ### Reward Decision for Publication (Updated 2025-12-26)
 
