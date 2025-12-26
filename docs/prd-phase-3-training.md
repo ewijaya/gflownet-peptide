@@ -606,12 +606,12 @@ python scripts/train_gflownet.py --n_steps 100 --wandb
 python scripts/train_gflownet.py --n_steps 10000 --wandb
 
 # 3. Full training (4-8 hours) - use nohup + auto-shutdown
-nohup python scripts/train_gflownet.py \
+nohup bash -c 'python scripts/train_gflownet.py \
   --config configs/default.yaml \
   --n_steps 100000 \
   --output_dir checkpoints/gflownet/final/ \
   --wandb \
-  > logs/train_gflownet_full.log 2>&1 && /home/ubuntu/bin/stopinstance &
+  > logs/train_gflownet_full.log 2>&1 && /home/ubuntu/bin/stopinstance' &
 
 # 4. Generate samples
 python scripts/sample.py \
@@ -632,20 +632,20 @@ For training runs longer than 30 minutes, use `nohup` with auto-shutdown to save
 mkdir -p logs
 
 # Baseline training (10K steps, ~30-60 min)
-nohup python scripts/train_gflownet.py \
+nohup bash -c 'python scripts/train_gflownet.py \
   --config configs/default.yaml \
   --n_steps 10000 \
   --output_dir checkpoints/gflownet/baseline/ \
   --wandb \
-  > logs/train_baseline.log 2>&1 && /home/ubuntu/bin/stopinstance &
+  > logs/train_baseline.log 2>&1 && /home/ubuntu/bin/stopinstance' &
 
 # Full training (100K steps, ~4-8 hours)
-nohup python scripts/train_gflownet.py \
+nohup bash -c 'python scripts/train_gflownet.py \
   --config configs/default.yaml \
   --n_steps 100000 \
   --output_dir checkpoints/gflownet/final/ \
   --wandb \
-  > logs/train_final.log 2>&1 && /home/ubuntu/bin/stopinstance &
+  > logs/train_final.log 2>&1 && /home/ubuntu/bin/stopinstance' &
 
 # Monitor progress (from another terminal or after reconnect)
 tail -f logs/train_final.log
