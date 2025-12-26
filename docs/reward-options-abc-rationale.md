@@ -63,21 +63,38 @@ But running all three gives a complete comparison for the paper's appendix.
 
 The code is factorized - GFlowNet's B/C options directly import and use the same reward classes that were implemented for GRPO Phase 0/0b. No code duplication.
 
-In `scripts/train_gflownet.py`:
+| Training Script | Reward Type | Import | Line |
+|-----------------|-------------|--------|------|
+| `scripts/train_grpo.py` | `esm2_pll` | `ESM2Reward` | 242 |
+| `scripts/train_grpo.py` | `improved` | `ImprovedReward` | 251 |
+| `scripts/train_gflownet.py` | `esm2_pll` | `ESM2Reward` | 145 |
+| `scripts/train_gflownet.py` | `improved` | `ImprovedReward` | 133 |
+
+**GRPO** (`scripts/train_grpo.py`):
 
 ```python
-# Option C uses the same class from Phase 0b
-elif args.reward_type == "improved":
-    from gflownet_peptide.rewards.improved_reward import ImprovedReward
-    return ImprovedReward(...)
+# Line 242 - Phase 0
+from gflownet_peptide.rewards.esm2_reward import ESM2Reward
+reward_fn = ESM2Reward(...)
 
-# Option B uses the same class from Phase 0
-elif args.reward_type == "esm2_pll":
-    from gflownet_peptide.rewards.esm2_reward import ESM2Reward
-    return ESM2Reward(...)
+# Line 251 - Phase 0b
+from gflownet_peptide.rewards.improved_reward import ImprovedReward
+reward_fn = ImprovedReward(...)
 ```
 
-Both `ImprovedReward` and `ESM2Reward` live in `gflownet_peptide/rewards/` and are shared between GRPO and GFlowNet training pipelines.
+**GFlowNet** (`scripts/train_gflownet.py`):
+
+```python
+# Line 145 - Option B
+from gflownet_peptide.rewards.esm2_reward import ESM2Reward
+return ESM2Reward(...)
+
+# Line 133 - Option C
+from gflownet_peptide.rewards.improved_reward import ImprovedReward
+return ImprovedReward(...)
+```
+
+Both `ImprovedReward` and `ESM2Reward` live in `gflownet_peptide/rewards/` and are shared between GRPO and GFlowNet training pipelines. Same classes, same module paths.
 
 This factorization enables the fair comparison for the paper: **same reward implementation, different optimization algorithm**.
 
