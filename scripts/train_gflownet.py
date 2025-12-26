@@ -60,6 +60,12 @@ def parse_args():
         help="Enable wandb logging",
     )
     parser.add_argument(
+        "--run_name",
+        type=str,
+        default=None,
+        help="W&B run name (e.g., 'baseline-10k', 'sweep-lr1e4')",
+    )
+    parser.add_argument(
         "--seed",
         type=int,
         default=42,
@@ -161,11 +167,24 @@ def main():
         try:
             import wandb
             wandb_config = config.get("logging", {})
+
+            # Generate descriptive run name if not provided
+            if args.run_name:
+                run_name = args.run_name
+            else:
+                # Auto-generate: gflownet-{steps}-{batch}-{lr}
+                n_steps = training_config.get("n_steps", 100000)
+                batch_size = training_config.get("batch_size", 64)
+                lr = training_config.get("learning_rate", 3e-4)
+                run_name = f"gflownet-{n_steps//1000}k-b{batch_size}-lr{lr:.0e}"
+
             wandb_run = wandb.init(
                 project=wandb_config.get("wandb_project", "gflownet-peptide"),
+                entity=wandb_config.get("wandb_entity"),
+                name=run_name,
                 config=config,
             )
-            logger.info("Wandb logging enabled")
+            logger.info(f"Wandb logging enabled: {run_name}")
         except ImportError:
             logger.warning("wandb not installed, skipping")
 

@@ -610,6 +610,7 @@ nohup bash -c 'python scripts/train_gflownet.py \
   --config configs/default.yaml \
   --n_steps 100000 \
   --output_dir checkpoints/gflownet/final/ \
+  --run_name gflownet-final-100k \
   --wandb \
   > logs/train_gflownet_full.log 2>&1 && /home/ubuntu/bin/stopinstance' &
 
@@ -636,6 +637,7 @@ nohup bash -c 'python scripts/train_gflownet.py \
   --config configs/default.yaml \
   --n_steps 10000 \
   --output_dir checkpoints/gflownet/baseline/ \
+  --run_name gflownet-baseline-10k \
   --wandb \
   > logs/train_baseline.log 2>&1 && /home/ubuntu/bin/stopinstance' &
 
@@ -644,6 +646,7 @@ nohup bash -c 'python scripts/train_gflownet.py \
   --config configs/default.yaml \
   --n_steps 100000 \
   --output_dir checkpoints/gflownet/final/ \
+  --run_name gflownet-final-100k \
   --wandb \
   > logs/train_final.log 2>&1 && /home/ubuntu/bin/stopinstance' &
 
