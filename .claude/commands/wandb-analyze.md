@@ -1,11 +1,11 @@
 ---
 description: Analyze W&B training runs and interpret results
-argument-hint: "[N] - number of latest runs to analyze (default: 1)"
+argument-hint: "[N | ID...] - number of latest runs OR specific run IDs"
 ---
 
 # W&B Run Analysis
 
-Analyze the latest N W&B training runs (default: 1).
+Analyze W&B training runs. Pass a number N for latest N runs, or one or more run IDs.
 
 **Argument**: $ARGUMENTS
 
@@ -22,12 +22,20 @@ Analyze the latest N W&B training runs (default: 1).
 import wandb
 import sys
 
-# Parse N from argument (default: 1)
 arg = '$ARGUMENTS'.strip()
-n = int(arg) if arg.isdigit() else 1
-
 api = wandb.Api()
-runs = api.runs('gflownet-peptide')[:n]
+
+if not arg:
+    # Default: get latest run
+    runs = api.runs('gflownet-peptide')[:1]
+elif arg.isdigit():
+    # Single integer N: get latest N runs
+    n = int(arg)
+    runs = api.runs('gflownet-peptide')[:n]
+else:
+    # One or more run IDs
+    run_ids = arg.split()
+    runs = [api.run(f'gflownet-peptide/{rid}') for rid in run_ids]
 
 if not runs:
     print('No runs found in gflownet-peptide')
