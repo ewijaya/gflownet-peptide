@@ -1,0 +1,53 @@
+# Phase 1: Reward Model Configuration
+# This config defines the composite reward function for peptide generation
+
+# ESM-2 backbone (shared across all reward components)
+esm_model: "esm2_t6_8M_UR50D"
+freeze_esm: true
+
+# Stability Predictor (trained on FLIP)
+stability:
+  enabled: true
+  checkpoint: "checkpoints/reward_models/stability_predictor_best.pt"
+  hidden_dims: [256, 128]
+  dropout: 0.1
+  weight: 1.0
+
+# Entropy Gate (prevents reward hacking)
+entropy_gate:
+  threshold: 0.5       # Minimum normalized entropy (50% of max)
+  sharpness: 10.0      # Sigmoid slope
+
+# Length Gate (ensures minimum peptide length)
+length_gate:
+  min_length: 10
+  sharpness: 0.5       # Sigmoid slope
+
+# Naturalness (ESM-2 embedding norm)
+naturalness:
+  temperature: 10.0    # Sigmoid temperature
+  weight: 0.5
+
+# Composite Reward
+# R(x) = stability^w1 × entropy_gate × length_gate × naturalness^w2
+composite:
+  weights:
+    stability: 1.0
+    naturalness: 0.5
+
+# Training configuration (for stability predictor)
+training:
+  learning_rate: 1.0e-3
+  batch_size: 16
+  epochs: 50
+  early_stopping_patience: 15
+
+  # Data paths
+  flip_stability_path: "data/processed/flip_stability"
+  propedia_path: "data/processed/propedia"
+
+# Checkpoints
+checkpoint_dir: "checkpoints/reward_models"
+
+# Logging
+wandb_project: "gflownet-peptide"
