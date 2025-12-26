@@ -172,7 +172,8 @@ def run_esmfold(sequences, batch_size=1, device='cuda'):
 
                 # Extract pLDDT scores (per-residue confidence)
                 # pLDDT is in outputs.plddt with shape [batch, seq_len]
-                plddt = outputs.plddt[0].cpu().numpy()
+                # HuggingFace returns values in 0-1 range, multiply by 100 for standard scale
+                plddt = outputs.plddt[0].cpu().numpy() * 100
 
                 # Filter valid residues (exclude padding)
                 seq_len = len(seq)

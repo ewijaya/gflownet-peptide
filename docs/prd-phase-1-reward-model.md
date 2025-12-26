@@ -1043,9 +1043,10 @@ GFlowNet success will be measured against BOTH GRPO-D baselines:
 **Phase 0a (Vanilla) Baseline**:
 - [x] Existing metrics documented (`outputs/grpod_baseline_vanilla/`)
 - [x] Homopolymer rate: 97.7%, Entropy: 0.453, KL divergence: 0.677
+- [x] ESMFold structure prediction: Mean pLDDT = 60.4, pLDDT >50 rate = 100%
 
 **Phase 0b (Improved) Baseline**:
-- [ ] ESMFold structure prediction (in progress)
+- [x] ESMFold structure prediction: Mean pLDDT = 55.9, pLDDT >50 rate = 80%
 - [x] AA composition compared to APD3/UniProt (KL divergence: 0.167)
 - [x] Pattern analysis (homopolymer: 19.5%, dipeptide repeats: 45.3%)
 - [x] Baseline metrics document generated (`outputs/grpod_baseline_metrics.json`)
@@ -1101,7 +1102,8 @@ GFlowNet success will be measured against BOTH GRPO-D baselines:
 | Sequence entropy | 0.453 | 0.833 | ✅ | Diversity baseline |
 | AA KL divergence | 0.677 | 0.167 | ✅ | Naturalness baseline |
 | Dipeptide repeats | 97.7% | 45.3% | ✅ | Pattern quality baseline |
-| Mean pLDDT | TBD | TBD | ⏳ | Structural quality baseline |
+| Mean pLDDT | **60.4** | **55.9** | ✅ | Structural quality baseline |
+| pLDDT >50 rate | 100% | 80% | ✅ | Structural plausibility |
 
 ### 8.3 Review Checklist
 - [x] All reward model deliverables completed
