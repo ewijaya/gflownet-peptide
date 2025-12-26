@@ -59,6 +59,30 @@ But running all three gives a complete comparison for the paper's appendix.
 
 ---
 
+## Implementation: Factorized Code
+
+The code is factorized - GFlowNet's B/C options directly import and use the same reward classes that were implemented for GRPO Phase 0/0b. No code duplication.
+
+In `scripts/train_gflownet.py`:
+
+```python
+# Option C uses the same class from Phase 0b
+elif args.reward_type == "improved":
+    from gflownet_peptide.rewards.improved_reward import ImprovedReward
+    return ImprovedReward(...)
+
+# Option B uses the same class from Phase 0
+elif args.reward_type == "esm2_pll":
+    from gflownet_peptide.rewards.esm2_reward import ESM2Reward
+    return ESM2Reward(...)
+```
+
+Both `ImprovedReward` and `ESM2Reward` live in `gflownet_peptide/rewards/` and are shared between GRPO and GFlowNet training pipelines.
+
+This factorization enables the fair comparison for the paper: **same reward implementation, different optimization algorithm**.
+
+---
+
 ## Conclusion
 
 Running all three options (A, B, C) is valuable because:
