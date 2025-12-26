@@ -40,6 +40,7 @@ class ESMBackbone(nn.Module):
         self._model = None
         self._alphabet = None
         self._batch_converter = None
+        self._device = None  # Track target device for lazy loading
 
         # ESM-2 embedding dimensions
         self._embed_dims = {
@@ -51,9 +52,19 @@ class ESMBackbone(nn.Module):
         }
         self.embed_dim = self._embed_dims.get(model_name, 1280)
 
-    def _load_model(self):
-        """Lazy load ESM model."""
-        if self._model is None:
+        # Representation layer to extract (based on model)
+        self._repr_layers = {
+            "esm2_t6_8M_UR50D": 6,
+            "esm2_t12_35M_UR50D": 12,
+            "esm2_t30_150M_UR50D": 30,
+            "esm2_t33_650M_UR50D": 33,
+            "esm2_t36_3B_UR50D": 36,
+        }
+        self._repr_layer = self._repr_layers.get(model_name, 33)
+
+    def _load_model(self, device: torch.device):
+        """Lazy load ESM model to specified device."""
+        if self._model is None or self._device != device:
             try:
                 import esm
 
@@ -61,6 +72,10 @@ class ESMBackbone(nn.Module):
                     self.model_name
                 )
                 self._batch_converter = self._alphabet.get_batch_converter()
+
+                # Move to target device
+                self._model = self._model.to(device)
+                self._device = device
 
                 if self.freeze:
                     self._model.eval()
@@ -72,6 +87,41 @@ class ESMBackbone(nn.Module):
                     "ESM is required. Install with: pip install fair-esm"
                 )
 
+    def _apply(self, fn):
+        """Override to track target device for lazy loading.
+
+        PyTorch's .to() calls _apply() internally, so we intercept here
+        to detect device changes even when called via parent module.
+        """
+        # Try to detect device from the function
+        # PyTorch's .to() creates a function that moves tensors
+        try:
+            test_tensor = torch.zeros(1)
+            result = fn(test_tensor)
+            if result.device != test_tensor.device:
+                self._device = result.device
+                if self._model is not None:
+                    self._model = self._model.to(self._device)
+        except Exception:
+            pass  # Not all _apply functions move tensors
+
+        return super()._apply(fn)
+
+    def to(self, device):
+        """Override to track target device for lazy loading."""
+        if isinstance(device, str):
+            device = torch.device(device)
+        elif isinstance(device, torch.device):
+            pass
+        else:
+            # Could be dtype or something else, let parent handle
+            return super().to(device)
+
+        self._device = device
+        if self._model is not None:
+            self._model = self._model.to(device)
+        return super().to(device)
+
     def forward(self, sequences: list[str]) -> torch.Tensor:
         """
         Encode sequences using ESM-2.
@@ -82,17 +132,21 @@ class ESMBackbone(nn.Module):
         Returns:
             embeddings: Mean-pooled ESM embeddings [batch, embed_dim]
         """
-        self._load_model()
+        # Determine target device
+        device = self._device if self._device is not None else torch.device("cpu")
+        self._load_model(device)
 
         # Prepare batch
         data = [(f"seq_{i}", seq) for i, seq in enumerate(sequences)]
         _, _, batch_tokens = self._batch_converter(data)
-        batch_tokens = batch_tokens.to(next(self._model.parameters()).device)
+        batch_tokens = batch_tokens.to(device)
 
         # Get ESM representations
         with torch.set_grad_enabled(not self.freeze):
-            results = self._model(batch_tokens, repr_layers=[33], return_contacts=False)
-            token_embeddings = results["representations"][33]
+            results = self._model(
+                batch_tokens, repr_layers=[self._repr_layer], return_contacts=False
+            )
+            token_embeddings = results["representations"][self._repr_layer]
 
         # Mean pool over sequence (excluding special tokens)
         # ESM adds <cls> at start and <eos> at end
@@ -158,6 +212,8 @@ class RewardHead(nn.Module):
             return F.softplus(raw)
         elif self.output_transform == "relu":
             return F.relu(raw) + 1e-6  # Small epsilon to avoid zero
+        elif self.output_transform == "sigmoid":
+            return torch.sigmoid(raw)
         else:
             return raw
 
