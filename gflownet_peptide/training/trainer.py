@@ -34,6 +34,14 @@ except ImportError:
     WANDB_AVAILABLE = False
     wandb = None
 
+# Optional tqdm import
+try:
+    from tqdm import tqdm
+    TQDM_AVAILABLE = True
+except ImportError:
+    TQDM_AVAILABLE = False
+    tqdm = None
+
 
 class GFlowNetTrainer:
     """
@@ -318,17 +326,32 @@ class GFlowNetTrainer:
 
         all_metrics = []
 
-        for step in range(n_steps):
+        # Setup progress bar
+        if TQDM_AVAILABLE:
+            pbar = tqdm(range(n_steps), desc="Training", unit="step")
+        else:
+            pbar = range(n_steps)
+
+        for step in pbar:
             metrics = self.train_step(batch_size, temperature)
+
+            # Update progress bar
+            if TQDM_AVAILABLE:
+                pbar.set_postfix({
+                    'loss': f"{metrics['loss']:.2f}",
+                    'log_z': f"{metrics['log_z']:.2f}",
+                    'reward': f"{metrics['mean_reward']:.3f}",
+                })
 
             # Logging
             if step % log_every == 0:
-                logger.info(
-                    f"Step {step}: loss={metrics['loss']:.4f}, "
-                    f"log_z={metrics['log_z']:.2f}, "
-                    f"mean_reward={metrics['mean_reward']:.4f}, "
-                    f"grad_norm={metrics['grad_norm']:.4f}"
-                )
+                if not TQDM_AVAILABLE:
+                    logger.info(
+                        f"Step {step}: loss={metrics['loss']:.4f}, "
+                        f"log_z={metrics['log_z']:.2f}, "
+                        f"mean_reward={metrics['mean_reward']:.4f}, "
+                        f"grad_norm={metrics['grad_norm']:.4f}"
+                    )
 
                 if wandb_run:
                     wandb_run.log({f"train/{k}": v for k, v in metrics.items()}, step=step)
