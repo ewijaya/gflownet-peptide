@@ -231,6 +231,13 @@ Current results (diversity 0.84-0.89, reward 0.95+) are already publication-qual
 | phase3b-entropy-0.00 | zv30wmny | 0.89 | 0.97 | 5071 |
 | reward-C-improved | zcb95gyl | 0.82 | 0.97 | 3379 |
 
+## Related Documentation
+
+For a detailed analysis of why the loss explosion occurs specifically around step 6000, see:
+- [Memo: TB Loss Explosion Step 6000 Analysis](Memo-TB-Loss-Explosion-Step6000-Analysis.md)
+
+---
+
 ## Bottom Line
 
 The loss explosion is a **documented phenomenon** in GFlowNet training with squared error loss. Sample quality metrics demonstrate the method works. **Proceed with publication.**
