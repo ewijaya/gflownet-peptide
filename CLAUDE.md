@@ -35,17 +35,36 @@ mypy gflownet_peptide/
 ## Training Pipeline
 
 ```bash
-# 1. Train reward model on FLIP/Propedia data
-python scripts/train_reward.py --task stability --data_path data/flip/
+# 1. Preprocess FLIP data
+python scripts/preprocess_data.py --input data/flip/raw --output data/flip/processed
 
-# 2. Train GFlowNet with trajectory balance loss
-python scripts/train_gflownet.py --config configs/default.yaml
+# 2. Train stability predictor (optional, for --reward_type trained)
+python scripts/train_stability.py --data_dir data/flip/processed --epochs 100
 
-# 3. Generate peptide samples
+# 3. Train GFlowNet with trajectory balance loss
+python scripts/train_gflownet.py --config configs/default.yaml --wandb --run_name my-run
+
+# 4. Generate peptide samples
 python scripts/sample.py --checkpoint checkpoints/gflownet/best.pt --n_samples 1000
 
-# 4. Evaluate diversity and quality
+# 5. Evaluate diversity and quality
 python scripts/evaluate.py --gflownet_samples samples/gflownet.csv
+```
+
+### Key Training Options
+
+```bash
+# Reward types (A/B/C options)
+--reward_type composite   # Untrained MLP heads (baseline)
+--reward_type esm2_pll    # ESM-2 pseudo-likelihood only
+--reward_type improved    # Entropy gate + naturalness (recommended)
+--reward_type trained     # Trained stability predictor (requires checkpoint)
+
+# Training stability options
+--loss_type trajectory_balance        # Standard TB loss
+--loss_type sub_trajectory_balance    # More stable loss curves (default)
+--entropy_weight 0.01                 # Prevent mode collapse (0.01-0.1)
+--log_z_lr_multiplier 3.0             # Slower log_Z learning for stability
 ```
 
 ## Architecture Overview
@@ -59,9 +78,13 @@ This codebase implements GFlowNet for therapeutic peptide generation. GFlowNet s
 - `BackwardPolicy`: Uniform P_B=1 for linear autoregressive generation.
 - `CompositeReward`: ESM-2 backbone with MLP heads for stability, binding, and naturalness. Combines as R(x) = stability^w1 × binding^w2 × naturalness^w3. Frozen during GFlowNet training.
 
+**Rewards** (`gflownet_peptide/rewards/`):
+- `StabilityPredictor`: ESM-2 backbone with MLP head trained on FLIP meltome data. Predicts thermal stability from sequence.
+- `ImprovedReward`: Combines entropy gating with naturalness metrics for better reward signal.
+
 **Training** (`gflownet_peptide/training/`):
-- `TrajectoryBalanceLoss`: L_TB = (log Z + Σ log P_F - log R - Σ log P_B)². Includes learnable log partition function log_Z.
-- `SubTrajectoryBalanceLoss`: Computes loss on sub-trajectories for better credit assignment.
+- `TrajectoryBalanceLoss`: L_TB = (log Z + Σ log P_F - log R - Σ log P_B)². Includes learnable log partition function log_Z. Supports entropy regularization.
+- `SubTrajectoryBalanceLoss`: Computes loss on sub-trajectories for better credit assignment. Provides more stable loss curves.
 - `TrajectorySampler`: Samples complete trajectories with forward/backward log probabilities.
 - `GFlowNetTrainer`: Orchestrates sampling, loss computation, and optimization with gradient clipping.
 
@@ -69,18 +92,33 @@ This codebase implements GFlowNet for therapeutic peptide generation. GFlowNet s
 - `metrics.py`: Sequence diversity (1 - mean pairwise identity), embedding diversity, cluster count, proportionality R².
 - `visualize.py`: UMAP projections, reward distribution plots.
 
+### Scripts
+
+| Script | Purpose |
+|--------|---------|
+| `train_gflownet.py` | Main GFlowNet training with W&B logging |
+| `train_stability.py` | Train ESM-2 stability predictor on FLIP data |
+| `preprocess_data.py` | Preprocess FLIP dataset for training |
+| `validate_reward_model.py` | Validate reward model predictions |
+| `sample.py` | Generate peptide samples from trained model |
+| `evaluate.py` | Compute diversity and quality metrics |
+
 ### Key Design Decisions
 
 - ESM-2 embeddings are mean-pooled (excluding special tokens) for reward prediction
 - Rewards are non-negative via exp/softplus transforms
 - Temperature β controls sharpness: P(x) ∝ R(x)^β
 - Minimum length enforced by clamping STOP action during early generation steps
+- Sub-trajectory balance (STB) loss preferred for stable training curves
+- Entropy regularization prevents mode collapse (weight 0.01-0.1)
 
 ## Configuration
 
 Main hyperparameters in `configs/default.yaml`:
 - `policy.d_model`: 256, `n_layers`: 4, `n_heads`: 8
-- `training.loss_type`: "trajectory_balance" or "sub_trajectory_balance"
+- `training.loss_type`: "sub_trajectory_balance" (default) or "trajectory_balance"
+- `training.entropy_weight`: 0.01 (entropy regularization)
+- `training.log_z_lr_multiplier`: 3.0 (reduced from 10.0 for stability)
 - `reward.temperature`: Controls reward sharpness
 - `generation.min_length`/`max_length`: 10-30 amino acids
 
