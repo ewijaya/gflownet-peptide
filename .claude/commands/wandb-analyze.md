@@ -5,6 +5,8 @@ argument-hint: "[N | ID...] - number of latest runs OR specific run IDs"
 
 # W&B Run Analysis
 
+Use maximum ultrathink. Take all the time you need. It's much better to do too much research and thinking than not enough.
+
 Analyze W&B training runs. Pass a number N for latest N runs, or one or more run IDs.
 
 **Argument**: $ARGUMENTS
