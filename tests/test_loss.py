@@ -266,5 +266,119 @@ class TestDetailedBalanceLoss:
         assert not torch.allclose(loss_terminal, loss_non_terminal)
 
 
+class TestEntropyRegularization:
+    """Test entropy regularization in TrajectoryBalanceLoss.
+
+    Entropy regularization prevents mode collapse by penalizing
+    overconfident policies. See docs/reward-comparison-analysis.md.
+    """
+
+    def test_default_entropy_weight_is_zero(self):
+        """Default entropy weight should be 0 (backward compatible)."""
+        loss_fn = TrajectoryBalanceLoss()
+        assert loss_fn.entropy_weight == 0.0
+
+    def test_entropy_weight_configurable(self):
+        """Entropy weight should be configurable."""
+        loss_fn = TrajectoryBalanceLoss(entropy_weight=0.05)
+        assert loss_fn.entropy_weight == 0.05
+
+    def test_zero_entropy_weight_matches_original(self):
+        """With entropy_weight=0, should match original TB loss."""
+        loss_fn_new = TrajectoryBalanceLoss(init_log_z=0.0, entropy_weight=0.0)
+
+        log_pf = torch.tensor([-20.0, -25.0, -22.0, -18.0])
+        log_pb = torch.zeros(4)
+        log_rewards = torch.tensor([-1.0, -0.5, -0.8, -1.2])
+
+        loss_new = loss_fn_new(log_pf, log_pb, log_rewards)
+
+        # Compute expected TB loss manually
+        residual = 0.0 + log_pf - log_rewards - log_pb
+        expected_loss = (residual ** 2).mean()
+
+        assert torch.isclose(loss_new, expected_loss, rtol=1e-5)
+
+    def test_entropy_regularization_penalizes_confidence(self):
+        """Confident policies (low log_pf) should have higher loss."""
+        loss_fn = TrajectoryBalanceLoss(init_log_z=0.0, entropy_weight=0.1)
+
+        log_pb = torch.zeros(4)
+        log_rewards = torch.zeros(4)
+
+        # Confident policy (very negative log_pf)
+        log_pf_confident = torch.tensor([-70.0, -72.0, -68.0, -71.0])
+
+        # Uncertain policy (less negative log_pf)
+        log_pf_uncertain = torch.tensor([-20.0, -22.0, -18.0, -21.0])
+
+        loss_confident = loss_fn(log_pf_confident, log_pb, log_rewards)
+        loss_uncertain = loss_fn(log_pf_uncertain, log_pb, log_rewards)
+
+        # Confident policy should have HIGHER total loss due to entropy penalty
+        assert loss_confident > loss_uncertain
+
+    def test_entropy_metrics_in_info(self):
+        """Loss info should include entropy-related metrics."""
+        loss_fn = TrajectoryBalanceLoss(entropy_weight=0.05)
+
+        log_pf = torch.tensor([-25.0, -30.0, -22.0, -28.0])
+        log_pb = torch.zeros(4)
+        log_rewards = torch.tensor([-0.5, -0.3, -0.7, -0.4])
+
+        loss, info = loss_fn(log_pf, log_pb, log_rewards, return_info=True)
+
+        assert 'mean_entropy' in info
+        assert 'entropy_reg' in info
+        assert 'tb_loss' in info
+
+        # Verify mean_entropy calculation: H = -E[log_P_F]
+        expected_entropy = -log_pf.mean().item()
+        assert abs(info['mean_entropy'] - expected_entropy) < 1e-5
+
+    def test_subtb_entropy_weight(self):
+        """SubTrajectoryBalanceLoss should also support entropy_weight."""
+        loss_fn = SubTrajectoryBalanceLoss(entropy_weight=0.03)
+        assert loss_fn.entropy_weight == 0.03
+
+    def test_subtb_entropy_penalizes_confidence(self):
+        """STB should also penalize overconfident policies."""
+        loss_fn = SubTrajectoryBalanceLoss(init_log_z=0.0, entropy_weight=0.1)
+
+        # Per-step log probs [batch=4, seq_len=5]
+        log_pb = torch.zeros(4, 5)
+        log_rewards = torch.zeros(4)
+
+        # Confident policy (very negative per-step log probs)
+        log_pf_confident = torch.full((4, 5), -14.0)  # sum = -70
+
+        # Uncertain policy
+        log_pf_uncertain = torch.full((4, 5), -4.0)   # sum = -20
+
+        loss_confident = loss_fn(log_pf_confident, log_pb, log_rewards)
+        loss_uncertain = loss_fn(log_pf_uncertain, log_pb, log_rewards)
+
+        # Confident policy should have HIGHER total loss
+        assert loss_confident > loss_uncertain
+
+    def test_subtb_entropy_metrics_in_info(self):
+        """STB loss info should include entropy-related metrics."""
+        loss_fn = SubTrajectoryBalanceLoss(entropy_weight=0.05)
+
+        log_pf = torch.randn(4, 10)
+        log_pb = torch.zeros(4, 10)
+        log_rewards = torch.randn(4)
+
+        loss, info = loss_fn(log_pf, log_pb, log_rewards, return_info=True)
+
+        assert 'mean_entropy' in info
+        assert 'entropy_reg' in info
+        assert 'stb_loss' in info
+
+        # Verify mean_entropy calculation: H = -E[log_P_F]
+        expected_entropy = -log_pf.sum(dim=1).mean().item()
+        assert abs(info['mean_entropy'] - expected_entropy) < 1e-5
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

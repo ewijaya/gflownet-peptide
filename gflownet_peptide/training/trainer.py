@@ -72,6 +72,7 @@ class GFlowNetTrainer:
         max_length: int = 30,
         exploration_eps: float = 0.0,
         reward_temperature: float = 1.0,
+        entropy_weight: float = 0.0,
         device: Optional[torch.device] = None,
     ):
         """
@@ -90,6 +91,8 @@ class GFlowNetTrainer:
             max_length: Maximum peptide length
             exploration_eps: ε for uniform mixing (Bengio 2021, Eq. 10)
             reward_temperature: Temperature β for reward sharpening R(x)^β
+            entropy_weight: Weight for entropy regularization to prevent mode collapse.
+                           Recommended: 0.01-0.1. Set to 0.0 to disable.
             device: Device to use
         """
         self.device = device or torch.device(
@@ -121,9 +124,15 @@ class GFlowNetTrainer:
 
         # Loss function
         if loss_type == "trajectory_balance":
-            self.loss_fn = TrajectoryBalanceLoss(init_log_z=init_log_z).to(self.device)
+            self.loss_fn = TrajectoryBalanceLoss(
+                init_log_z=init_log_z,
+                entropy_weight=entropy_weight,
+            ).to(self.device)
         elif loss_type == "sub_trajectory_balance":
-            self.loss_fn = SubTrajectoryBalanceLoss(init_log_z=init_log_z).to(self.device)
+            self.loss_fn = SubTrajectoryBalanceLoss(
+                init_log_z=init_log_z,
+                entropy_weight=entropy_weight,
+            ).to(self.device)
         else:
             raise ValueError(f"Unknown loss type: {loss_type}")
 
@@ -148,6 +157,7 @@ class GFlowNetTrainer:
         # Training state
         self.global_step = 0
         self.best_loss = float("inf")
+        self.best_reward = 0.0  # Track best mean reward for checkpoint selection
 
         # Store config for checkpointing
         self.config = {
@@ -161,6 +171,7 @@ class GFlowNetTrainer:
             'max_length': max_length,
             'exploration_eps': exploration_eps,
             'reward_temperature': reward_temperature,
+            'entropy_weight': entropy_weight,
         }
 
         logger.info(f"GFlowNetTrainer initialized on {self.device}")
@@ -378,11 +389,18 @@ class GFlowNetTrainer:
                 latest_path = checkpoint_dir / f"{run_name or 'gflownet'}_latest.pt"
                 self.save_checkpoint(latest_path, step=step)
 
-                # Save best model
-                if metrics["loss"] < self.best_loss:
-                    self.best_loss = metrics["loss"]
+                # Save best model by REWARD (not loss)
+                # Rationale: TB loss is unreliable - can be low for degenerate policies
+                # See docs/reward-comparison-analysis.md Section 4
+                if metrics.get("mean_reward", 0) > self.best_reward:
+                    self.best_reward = metrics["mean_reward"]
                     best_path = checkpoint_dir / f"{run_name or 'gflownet'}_best.pt"
                     self.save_checkpoint(best_path, step=step)
+                    logger.info(
+                        f"New best model at step {step}: "
+                        f"mean_reward={metrics['mean_reward']:.4f} "
+                        f"(loss={metrics['loss']:.2f})"
+                    )
 
         # Final checkpoint
         if checkpoint_dir:
@@ -501,6 +519,7 @@ class GFlowNetTrainer:
             "loss_fn_state_dict": self.loss_fn.state_dict(),
             "optimizer_state_dict": self.optimizer.state_dict(),
             "best_loss": self.best_loss,
+            "best_reward": self.best_reward,
             "config": self.config,
         }
         torch.save(checkpoint, path)
@@ -515,6 +534,7 @@ class GFlowNetTrainer:
         self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         self.global_step = checkpoint["step"]
         self.best_loss = checkpoint.get("best_loss", float("inf"))
+        self.best_reward = checkpoint.get("best_reward", 0.0)
 
         # Optionally restore config
         if "config" in checkpoint:

@@ -341,5 +341,80 @@ class TestGFlowNetTrainerWithNNModule:
         assert torch.isfinite(torch.tensor(metrics['loss']))
 
 
+class TestCheckpointSelectionByReward:
+    """Test that best checkpoint is selected by reward, not loss.
+
+    This addresses the critical bug where lowest-loss checkpoint
+    had 15x worse sample quality than final checkpoint.
+    See docs/reward-comparison-analysis.md Section 4.
+    """
+
+    @pytest.fixture
+    def trainer(self):
+        """Create a minimal trainer for testing."""
+        forward_policy = ForwardPolicy(
+            vocab_size=23, d_model=64, n_layers=2, n_heads=4
+        )
+        backward_policy = BackwardPolicy(use_uniform=True)
+        reward_model = MockRewardModel()
+
+        return GFlowNetTrainer(
+            forward_policy=forward_policy,
+            backward_policy=backward_policy,
+            reward_model=reward_model,
+            device=torch.device('cpu'),
+        )
+
+    def test_best_reward_initialized_to_zero(self, trainer):
+        """best_reward should start at 0."""
+        assert trainer.best_reward == 0.0
+
+    def test_best_reward_saved_in_checkpoint(self, trainer):
+        """Checkpoint should contain best_reward field."""
+        trainer.best_reward = 0.75
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "test.pt"
+            trainer.save_checkpoint(path, step=100)
+
+            checkpoint = torch.load(path, weights_only=False)
+            assert 'best_reward' in checkpoint
+            assert checkpoint['best_reward'] == 0.75
+
+    def test_best_reward_restored_on_load(self, trainer):
+        """best_reward should be restored when loading checkpoint."""
+        trainer.best_reward = 0.85
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "test.pt"
+            trainer.save_checkpoint(path, step=100)
+
+            # Reset and reload
+            trainer.best_reward = 0.0
+            trainer.load_checkpoint(path)
+
+            assert trainer.best_reward == 0.85
+
+    def test_backward_compatible_load(self, trainer):
+        """Loading old checkpoint without best_reward should work."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "old_checkpoint.pt"
+
+            # Create checkpoint without best_reward (simulating old format)
+            old_checkpoint = {
+                'step': 100,
+                'forward_policy_state_dict': trainer.forward_policy.state_dict(),
+                'loss_fn_state_dict': trainer.loss_fn.state_dict(),
+                'optimizer_state_dict': trainer.optimizer.state_dict(),
+                'best_loss': 10.0,
+                'config': {},
+            }
+            torch.save(old_checkpoint, path)
+
+            # Should load without error, best_reward defaults to 0
+            trainer.load_checkpoint(path)
+            assert trainer.best_reward == 0.0
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

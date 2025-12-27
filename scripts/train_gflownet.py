@@ -86,6 +86,28 @@ def parse_args():
         default=None,
         help="ESM-2 model for reward (default: from config or esm2_t6_8M_UR50D)",
     )
+    parser.add_argument(
+        "--entropy_weight",
+        type=float,
+        default=None,
+        help="Entropy regularization weight. Encourages exploration and prevents "
+             "mode collapse. Recommended: 0.01-0.1. Default: from config or 0.0",
+    )
+    parser.add_argument(
+        "--log_z_lr_multiplier",
+        type=float,
+        default=None,
+        help="Learning rate multiplier for log_Z parameter. Lower values (3.0) "
+             "provide more stable training. Default: from config or 10.0",
+    )
+    parser.add_argument(
+        "--loss_type",
+        type=str,
+        default=None,
+        choices=["trajectory_balance", "sub_trajectory_balance"],
+        help="Loss type: trajectory_balance (TB) or sub_trajectory_balance (STB). "
+             "STB provides stable loss curves. Default: from config",
+    )
 
     return parser.parse_args()
 
@@ -215,19 +237,48 @@ def main():
     training_config = config.get("training", {})
     generation_config = config.get("generation", {})
 
+    # Get entropy_weight from args or config
+    entropy_weight = args.entropy_weight
+    if entropy_weight is None:
+        entropy_weight = training_config.get("entropy_weight", 0.0)
+
+    # Get log_z_lr_multiplier from args or config
+    log_z_lr_multiplier = args.log_z_lr_multiplier
+    if log_z_lr_multiplier is None:
+        log_z_lr_multiplier = training_config.get("log_z_lr_multiplier", 10.0)
+
+    # Get loss_type from args or config
+    loss_type = args.loss_type
+    if loss_type is None:
+        loss_type = training_config.get("loss_type", "trajectory_balance")
+
+    logger.info(f"Using loss_type={loss_type}, entropy_weight={entropy_weight}, log_z_lr_multiplier={log_z_lr_multiplier}")
+
     trainer = GFlowNetTrainer(
         forward_policy=forward_policy,
         backward_policy=backward_policy,
         reward_model=reward_model,
         learning_rate=training_config.get("learning_rate", 3e-4),
+        log_z_lr_multiplier=log_z_lr_multiplier,
         weight_decay=training_config.get("weight_decay", 0.01),
         max_grad_norm=training_config.get("max_grad_norm", 1.0),
-        loss_type=training_config.get("loss_type", "trajectory_balance"),
+        loss_type=loss_type,
         min_length=generation_config.get("min_length", 10),
         max_length=generation_config.get("max_length", 30),
         reward_temperature=reward_config.get("temperature", 1.0),
+        entropy_weight=entropy_weight,
         device=device,
     )
+
+    # Generate run name if not provided (for checkpoints and wandb)
+    if args.run_name:
+        run_name = args.run_name
+    else:
+        # Auto-generate: gflownet-{steps}-{batch}-{lr}
+        n_steps = training_config.get("n_steps", 100000)
+        batch_size = training_config.get("batch_size", 64)
+        lr = training_config.get("learning_rate", 3e-4)
+        run_name = f"gflownet-{n_steps//1000}k-b{batch_size}-lr{lr:.0e}"
 
     # Setup wandb
     wandb_run = None
@@ -235,16 +286,6 @@ def main():
         try:
             import wandb
             wandb_config = config.get("logging", {})
-
-            # Generate descriptive run name if not provided
-            if args.run_name:
-                run_name = args.run_name
-            else:
-                # Auto-generate: gflownet-{steps}-{batch}-{lr}
-                n_steps = training_config.get("n_steps", 100000)
-                batch_size = training_config.get("batch_size", 64)
-                lr = training_config.get("learning_rate", 3e-4)
-                run_name = f"gflownet-{n_steps//1000}k-b{batch_size}-lr{lr:.0e}"
 
             wandb_run = wandb.init(
                 project=wandb_config.get("wandb_project", "gflownet-peptide"),
@@ -270,6 +311,7 @@ def main():
         eval_every=training_config.get("eval_every", 1000),
         save_every=training_config.get("save_every", 5000),
         checkpoint_dir=str(output_dir),
+        run_name=run_name,
         wandb_run=wandb_run,
     )
 

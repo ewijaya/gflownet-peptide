@@ -70,8 +70,10 @@ training:
   lr_scheduler: "cosine"
   warmup_steps: 1000
 
-  # Malkin 2022: log_Z should have higher LR (~10x policy LR)
-  log_z_lr_multiplier: 10.0
+  # log_Z learning rate multiplier (Malkin 2022)
+  # CHANGED from 10.0 to 3.0 for stability
+  # See docs/reward-comparison-analysis.md Section 3.4
+  log_z_lr_multiplier: 3.0
 
   # Batch and steps
   batch_size: 64
@@ -80,7 +82,21 @@ training:
   max_grad_norm: 1.0
 
   # Loss function
-  loss_type: "trajectory_balance"  # "trajectory_balance" or "sub_trajectory_balance"
+  # CHANGED from "trajectory_balance" to "sub_trajectory_balance"
+  # STB provides stable loss curves suitable for publication
+  # See docs/prd-phase-3b-training-stability.md Section 2.5
+  loss_type: "sub_trajectory_balance"
+
+  # Sub-trajectory balance decay factor (λ in the paper)
+  # Controls contribution weighting: L_t = λ^(T-t) × residual²
+  # Higher values (0.9-0.99) give more weight to later steps
+  lambda_sub: 0.9
+
+  # Entropy regularization weight
+  # Encourages exploration, prevents mode collapse
+  # L_total = L_STB - entropy_weight * mean(log_P_F)
+  # Recommended: 0.01-0.1, set to 0.0 to disable
+  entropy_weight: 0.01
 
   # Checkpointing (policy: overwrite latest, keep final)
   save_every: 5000
